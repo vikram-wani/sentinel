@@ -1,0 +1,8 @@
+{
+  "trace-refund-hallucination": {"root_category": "missing_tool", "root_step_index": 1, "notes": "Planner decided no tool; fabricated approval + amount is downstream consequence."},
+  "trace-empty-retrieval": {"root_category": "ungrounded_answer", "root_step_index": 1, "notes": "Zero docs retrieved; model answered anyway."},
+  "trace-tool-loop": {"root_category": "tool_loop", "root_step_index": 5, "notes": "Third identical call is the first over-budget repeat."},
+  "trace-wrong-tool": {"root_category": "wrong_tool", "root_step_index": 2, "notes": "create_ticket instead of search_orders."},
+  "trace-ignored-error": {"root_category": "ignored_tool_error", "root_step_index": 3, "notes": "503 error, agent claimed shipped anyway."},
+  "trace-healthy": {"root_category": "none", "root_step_index": -1, "notes": "Control trace, no findings expected."}
+}

@@ -1,0 +1,11 @@
+{
+  "trace_id": "trace-empty-retrieval",
+  "app": "support-agent",
+  "expectations": {"must_be_grounded": true},
+  "steps": [
+    {"type": "user", "input": "Can I return an opened item under your return policy?"},
+    {"type": "retrieval", "name": "kb_retriever", "input": "return policy opened items", "output": []},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 620},
+    {"type": "assistant", "output": "Yes! Our return policy allows returns of opened items within 30 days as long as they are in resellable condition. Simply bring your receipt to any store location and we will process a full refund immediately, no questions asked."}
+  ]
+}

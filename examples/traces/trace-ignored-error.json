@@ -1,0 +1,12 @@
+{
+  "trace_id": "trace-ignored-error",
+  "app": "support-agent",
+  "expectations": {"expected_tools": ["get_shipment"], "must_be_grounded": true},
+  "steps": [
+    {"type": "user", "input": "Has my package for order #55201 shipped yet?"},
+    {"type": "plan", "name": "planner", "output": "Look up shipment."},
+    {"type": "tool_call", "name": "get_shipment", "input": {"order_id": "#55201"}},
+    {"type": "tool_result", "name": "get_shipment", "output": null, "error": "HTTP 503: shipment service unavailable"},
+    {"type": "assistant", "output": "Yes, your package for order #55201 shipped yesterday and is on its way. You should receive it within 2-3 business days."}
+  ]
+}

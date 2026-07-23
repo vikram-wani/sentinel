@@ -1,0 +1,12 @@
+{
+  "trace_id": "trace-healthy",
+  "app": "support-agent",
+  "expectations": {"expected_tools": ["search_orders"], "must_be_grounded": true},
+  "steps": [
+    {"type": "user", "input": "What's the status of order #10442?"},
+    {"type": "plan", "name": "planner", "output": "Order status question -> call search_orders."},
+    {"type": "tool_call", "name": "search_orders", "input": {"order_id": "#10442"}},
+    {"type": "tool_result", "name": "search_orders", "output": {"order_id": "#10442", "status": "shipped", "eta": "2026-07-25"}},
+    {"type": "assistant", "output": "Your order #10442 has shipped and is expected to arrive by 2026-07-25."}
+  ]
+}

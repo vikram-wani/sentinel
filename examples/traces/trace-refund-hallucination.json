@@ -1,0 +1,14 @@
+{
+  "trace_id": "trace-refund-hallucination",
+  "app": "support-agent",
+  "expectations": {
+    "expected_tools": ["search_orders"],
+    "must_be_grounded": true
+  },
+  "steps": [
+    {"type": "user", "input": "What's the status of my refund for order #48213?"},
+    {"type": "plan", "name": "planner", "output": "User asks about refund. I can answer from policy knowledge.", "meta": {"decision": "no_tool"}},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 850},
+    {"type": "assistant", "output": "Good news! Your refund for order #48213 was approved and $129.99 will be returned to your card within 3-5 business days."}
+  ]
+}

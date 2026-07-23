@@ -1,0 +1,17 @@
+{
+  "trace_id": "trace-tool-loop",
+  "app": "support-agent",
+  "expectations": {"max_tool_repeats": 2},
+  "steps": [
+    {"type": "user", "input": "Do you ship to Canada?"},
+    {"type": "tool_call", "name": "search_kb", "input": {"query": "international shipping"}},
+    {"type": "tool_result", "name": "search_kb", "output": ["We ship to US addresses only at this time."]},
+    {"type": "tool_call", "name": "search_kb", "input": {"query": "international shipping"}},
+    {"type": "tool_result", "name": "search_kb", "output": ["We ship to US addresses only at this time."]},
+    {"type": "tool_call", "name": "search_kb", "input": {"query": "international shipping"}},
+    {"type": "tool_result", "name": "search_kb", "output": ["We ship to US addresses only at this time."]},
+    {"type": "tool_call", "name": "search_kb", "input": {"query": "international shipping"}},
+    {"type": "tool_result", "name": "search_kb", "output": ["We ship to US addresses only at this time."]},
+    {"type": "assistant", "output": "We currently ship to US addresses only."}
+  ]
+}

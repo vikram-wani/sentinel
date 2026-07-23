@@ -1,0 +1,16 @@
+[project]
+name = "sentinel-ai-reliability"
+version = "0.1.0"
+description = "AI Reliability Engineer: deterministic root-cause localization for agent failures, with auto-generated regression tests."
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2", "pyyaml"]
+
+[project.scripts]
+sentinel = "sentinel.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,15 @@
+{
+  "trace_id": "trace-wrong-tool",
+  "app": "support-agent",
+  "expectations": {
+    "expected_tools": ["search_orders"],
+    "forbidden_tools": ["create_ticket"]
+  },
+  "steps": [
+    {"type": "user", "input": "Where is my order ORD-77812?"},
+    {"type": "plan", "name": "planner", "output": "Order issue -> escalate to human via ticket."},
+    {"type": "tool_call", "name": "create_ticket", "input": {"subject": "Order inquiry ORD-77812"}},
+    {"type": "tool_result", "name": "create_ticket", "output": {"ticket_id": "TKT-90031"}},
+    {"type": "assistant", "output": "I've created support ticket TKT-90031 for your order ORD-77812. An agent will reach out within 24 hours."}
+  ]
+}

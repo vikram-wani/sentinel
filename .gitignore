@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Sentinel artifacts (generated reports/tests are outputs, not source)
+artifacts/
+*.report.md
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
