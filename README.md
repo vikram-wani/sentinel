@@ -6,20 +6,11 @@
 
 ## The problem
 
-AI agents fail differently than traditional software. There's no stack trace —
-just a bad final answer buried at the end of a chain of planner decisions, tool
-calls, and retrieved context. Today, diagnosing a single production incident
-means an engineer manually opening traces, replaying the conversation, reading
-prompts, and inspecting tool calls to reconstruct what happened. That typically
-takes **30–90 minutes**, the process doesn't scale past a handful of incidents a
-week, and most failures never turn into a regression test — so the same class of
-bug quietly recurs.
+AI agents fail differently than traditional software. When code crashes, you get a stack trace pointing at the exact failure. When an agent gives a wrong answer, nothing crashes — the retrieval call "succeeds" with zero documents, the tool call "succeeds" with the wrong tool, and the program exits cleanly with a confidently wrong final answer. There's no exception to catch, so there's no stack trace pointing at the actual bug — just a trace an engineer has to read end to end, by hand, to find where it actually went wrong.
 
-Existing eval frameworks mostly answer *"did the agent fail?"* Sentinel answers:
+Existing eval frameworks mostly answer "did the agent fail?" Sentinel answers:
 
-> *"The first irreversible mistake happened at step 6, when the planner skipped
-> `search_orders`. Everything after that — the hallucinated refund amount — was
-> a consequence, not a separate bug."*
+"The first irreversible mistake happened at step 6, when the planner skipped search_orders. Everything after that — the hallucinated refund amount — was a consequence, not a separate bug."
 
 ## Who this is for
 
