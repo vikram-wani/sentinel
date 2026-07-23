@@ -3,6 +3,7 @@ name = "sentinel-ai-reliability"
 version = "0.1.0"
 description = "AI Reliability Engineer: deterministic root-cause localization for agent failures, with auto-generated regression tests."
 requires-python = ">=3.10"
+license = "Apache-2.0"
 dependencies = ["pydantic>=2", "pyyaml"]
 
 [project.scripts]
