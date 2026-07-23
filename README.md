@@ -1,5 +1,8 @@
 # Sentinel
 
+[![CI](https://github.com/vikram-wani/sentinel/actions/workflows/ci.yml/badge.svg)]
+(https://github.com/vikram-wani/sentinel/actions/workflows/ci.yml)
+
 **Your agent failed. Your logs won't tell you where.**
 
 When an LLM agent fails in production, the symptom is almost never the cause. The
@@ -32,6 +35,7 @@ it is never the source of truth for localization.
 ```
 pip install -e .
 sentinel demo
+
 ```
 
 ```
