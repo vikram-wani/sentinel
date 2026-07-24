@@ -1,0 +1,17 @@
+{
+  "trace_id": "trace-paginated-retries-healthy",
+  "app": "support-agent",
+  "expectations": {
+    "expected_tools": ["search_orders"],
+    "must_be_grounded": true,
+    "max_tool_repeats": 2
+  },
+  "steps": [
+    {"type": "user", "input": "Search my order history for anything with 'jacket' in it."},
+    {"type": "tool_call", "name": "search_orders", "input": {"query": "jacket", "page": 1}},
+    {"type": "tool_result", "name": "search_orders", "output": {"results": [], "next_page": true}},
+    {"type": "tool_call", "name": "search_orders", "input": {"query": "jacket", "page": 2}},
+    {"type": "tool_result", "name": "search_orders", "output": {"results": [{"order_id": "ORD-5521", "item": "Winter Jacket"}], "next_page": false}},
+    {"type": "assistant", "output": "Found it \u2014 Winter Jacket, order ORD-5521."}
+  ]
+}

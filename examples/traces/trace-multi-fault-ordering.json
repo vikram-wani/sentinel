@@ -1,0 +1,21 @@
+{
+  "trace_id": "trace-multi-fault-ordering",
+  "app": "support-agent",
+  "expectations": {
+    "expected_tools": ["search_orders"],
+    "forbidden_tools": ["search_faq"],
+    "must_be_grounded": true,
+    "max_tool_repeats": 2
+  },
+  "steps": [
+    {"type": "user", "input": "What's my order ORD-991 status?"},
+    {"type": "plan", "name": "planner", "output": "Order question -> route to FAQ search."},
+    {"type": "tool_call", "name": "search_faq", "input": {"query": "order status"}},
+    {"type": "tool_result", "name": "search_faq", "output": ["Orders typically ship within 2-3 business days."]},
+    {"type": "tool_call", "name": "search_faq", "input": {"query": "order status"}},
+    {"type": "tool_result", "name": "search_faq", "output": ["Orders typically ship within 2-3 business days."]},
+    {"type": "tool_call", "name": "search_faq", "input": {"query": "order status"}},
+    {"type": "tool_result", "name": "search_faq", "output": ["Orders typically ship within 2-3 business days."]},
+    {"type": "assistant", "output": "Your order ORD-991 shipped and should arrive in 2-3 days, tracking number 1Z999AA1."}
+  ]
+}

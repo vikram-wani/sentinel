@@ -1,0 +1,12 @@
+{
+  "trace_id": "trace-sparse-retrieval-healthy",
+  "app": "support-agent",
+  "expectations": {"must_be_grounded": true},
+  "steps": [
+    {"type": "user", "input": "What's the restocking fee for returning a used blender?"},
+    {"type": "plan", "name": "planner", "output": "Look up return policy."},
+    {"type": "retrieval", "name": "search_policy", "input": "restocking fee blender", "output": ["Restocking fee for used small appliances is $15."]},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 300},
+    {"type": "assistant", "output": "The restocking fee for a used blender is $15."}
+  ]
+}

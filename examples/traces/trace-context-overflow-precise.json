@@ -1,0 +1,15 @@
+{
+  "trace_id": "trace-context-overflow-precise",
+  "app": "docs-agent",
+  "expectations": {"must_be_grounded": true, "context_budget_tokens": 1000},
+  "steps": [
+    {"type": "user", "input": "Summarize this 50-page vendor contract for me.", "tokens": 50},
+    {"type": "plan", "name": "planner", "output": "Retrieve full contract text.", "tokens": 100},
+    {"type": "tool_call", "name": "fetch_document", "input": {"doc_id": "contract-4471"}, "tokens": 50},
+    {"type": "tool_result", "name": "fetch_document", "output": "Section 1: Definitions... Section 2: Payment terms net-30...", "tokens": 400},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 300},
+    {"type": "tool_call", "name": "fetch_document", "input": {"doc_id": "contract-4471-appendix"}, "tokens": 50},
+    {"type": "tool_result", "name": "fetch_document", "output": "Appendix A: Service level agreement terms...", "tokens": 200},
+    {"type": "assistant", "output": "This is a vendor services contract with net-30 payment terms and an SLA appendix.", "tokens": 100}
+  ]
+}

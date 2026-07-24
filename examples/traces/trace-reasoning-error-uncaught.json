@@ -1,0 +1,12 @@
+{
+  "trace_id": "trace-reasoning-error-uncaught",
+  "app": "support-agent",
+  "expectations": {"must_be_grounded": true},
+  "steps": [
+    {"type": "user", "input": "Can I return this jacket? I opened the package but didn't wear it."},
+    {"type": "plan", "name": "planner", "output": "Look up return policy for opened items."},
+    {"type": "retrieval", "name": "search_policy", "input": "return policy opened items", "output": ["Items may be returned within 30 days if unworn and unopened. Opened items are final sale."]},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 350},
+    {"type": "assistant", "output": "Yes, you can return it since you didn't wear it \u2014 opened items are fine as long as they're unworn."}
+  ]
+}

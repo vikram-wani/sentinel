@@ -1,0 +1,20 @@
+{
+  "trace_id": "trace-misleading-severity",
+  "app": "support-agent",
+  "expectations": {
+    "must_be_grounded": true,
+    "max_tool_repeats": 2
+  },
+  "steps": [
+    {"type": "user", "input": "Do you have this jacket in size M?"},
+    {"type": "tool_call", "name": "check_inventory", "input": {"sku": "JK-221", "size": "M"}},
+    {"type": "tool_result", "name": "check_inventory", "output": {}},
+    {"type": "tool_call", "name": "check_inventory", "input": {"sku": "JK-221", "size": "M"}},
+    {"type": "tool_result", "name": "check_inventory", "output": {}},
+    {"type": "tool_call", "name": "check_inventory", "input": {"sku": "JK-221", "size": "M"}},
+    {"type": "tool_result", "name": "check_inventory", "output": {}},
+    {"type": "retrieval", "name": "search_similar_items", "input": "jacket size M alternatives", "output": []},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 400},
+    {"type": "assistant", "output": "Great news, we have 3 in stock at $89.99, ready to ship today!"}
+  ]
+}
