@@ -128,31 +128,46 @@ any of this finished — the same discipline as Day 2:
 **Current result, keyless: 13/14.** The one remaining failure is the exact
 one predicted and designed to fail — not a surprise, not a regression.
 
+**Current result, Tier 3 active: 14/14, stable across 5 consecutive runs.**
+A live Anthropic API key was set, `sentinel bench` was run five times
+independently, and all five returned 14/14. `trace-exception-clause-tricky`
+resolved correctly every time — the judge read the "except for defective
+products" clause and returned `CONSISTENT`, which is precisely the case Tier
+2's keyword matching structurally cannot handle.
+
+The five-run check exists because Tier 3 is a model call, not a deterministic
+check. Tiers 1–2 cannot return different answers on identical input; Tier 3
+can. A single passing run would have been one sample presented as a property.
+Five consecutive identical results is weak-but-real evidence of stability on
+this specific set — not proof it generalizes.
+
 | Tier | Traces resolved | Cost | Guarantee |
 |---|---|---|---|
 | 1 — deterministic detectors | 10 of 14 | free | confidence 1.0, cannot flip |
-| 2 — code heuristic | +1 (the original miss) | free | confidence 1.0 candidate → 0.55 unconfirmed finding |
+| 2 — code heuristic | +1 (Day 2's original miss) | free | confidence 1.0 candidate → 0.55 unconfirmed finding |
 | 2, known gap | −1 (exception-clause trace) | — | requires Tier 3 to resolve |
-| 3 — LLM judge (mocked) | would resolve the gap | opt-in, per-call | confidence < 1.0, can't outrank Tiers 1–2 |
+| 3 — LLM judge (live) | +1, resolving the gap → 14/14 | opt-in, ~fractions of a cent per run | confidence < 1.0, can't outrank Tiers 1–2 |
 
-## What Day 3 has not yet verified
+## What Day 3 has and hasn't proven
 
-Everything above except one claim was tested in this environment, including
-against mocked Tier 3 responses matching the exact system prompt and output
-format Tier 3 uses live. What has **not** been verified: a real call to the
-Anthropic API, from the maintainer's own machine, against the live traces.
-That's the difference between "the design is sound and the parsing logic is
-correct" and "the judge actually works." Until that run happens and this
-paragraph gets replaced with a real number, treat Tier 3's accuracy as
-designed-and-mocked, not measured.
+**Measured:** Tier 2 closes Day 2's documented miss with zero API calls. Tier
+3, live, closes the exception-clause gap and held 14/14 across five runs.
+
+**Not measured, and worth stating plainly:** 14 traces where the author wrote
+both the traces and the labels is not evidence of production accuracy. The
+judge has been tested against one contradiction pattern (restriction vs.
+affirmation) in one domain (retail returns policy). Its false-positive rate on
+genuinely ambiguous real-world evidence is unknown. Five runs is enough to say
+"stable on this set," not "deterministic" — and the CLI now prints that caveat
+on every run rather than burying it here.
 
 ## What this benchmark is not
 
 Fourteen traces is not statistical proof of anything. It's a floor: a fixed,
-inspectable set of cases that must keep passing (except the one documented,
-permanent Tier 2 gap) as the detectors evolve, run automatically in CI on
-every push. Treat the 13/14 number as "hasn't regressed on these specific
-known cases," not as "93% accurate on production traffic." The next honest
-step is running this against real, messier production traces — where the
-failure categories won't be as cleanly separable as they are here by
-construction.
+inspectable set of cases that must keep passing as the detectors evolve, run
+automatically in CI on every push. Treat 13/14 keyless and 14/14 with the
+judge as "hasn't regressed on these specific known cases," not as "93–100%
+accurate on production traffic." The next honest step is running this against
+real, messier production traces — where the failure categories won't be as
+cleanly separable as they are here by construction, and where the judge will
+face contradiction patterns nobody wrote a label for in advance.
