@@ -10,10 +10,9 @@ AI agents fail differently than traditional software. There's no stack trace —
 just a bad final answer buried at the end of a chain of planner decisions, tool
 calls, and retrieved context. Today, diagnosing a single production incident
 means an engineer manually opening traces, replaying the conversation, reading
-prompts, and inspecting tool calls to reconstruct what happened. That typically
-takes **30–90 minutes**, the process doesn't scale past a handful of incidents a
-week, and most failures never turn into a regression test — so the same class of
-bug quietly recurs.
+prompts, and inspecting tool calls to reconstruct what happened by hand. The
+process doesn't scale past a handful of incidents a week, and most failures
+never turn into a regression test — so the same class of bug quietly recurs.
 
 Existing eval frameworks mostly answer *"did the agent fail?"* Sentinel answers:
 
@@ -41,6 +40,8 @@ Existing eval frameworks mostly answer *"did the agent fail?"* Sentinel answers:
 
 ## How it works
 
+![Sentinel architecture — tiered detection cascade](docs/architecture.png)
+
 Feed Sentinel one failed trace. It runs a set of deterministic detectors
 (missing/wrong tool, tool loops, empty-retrieval-but-answered-anyway, ignored
 tool errors, fabricated hard values not present in any observed evidence,
@@ -54,20 +55,21 @@ explains everything downstream. You get back:
 - **A generated pytest regression test + portable eval spec** — the incident
   becomes a permanent CI gate, not a one-off postmortem
 
-Every detector is deterministic: on identical input, the verdict cannot flip
-between runs. That's what makes the output safe to gate CI on, rather than
-another flaky LLM-judge score. An optional LLM layer can narrate results in
-plain English later, but it is never the source of truth for *where* the
-failure happened.
+Every Tier 1/2 detector is deterministic: on identical input, the verdict
+cannot flip between runs. That's what makes the output safe to gate CI on,
+rather than another flaky LLM-judge score. Tier 3 is a narrowly-scoped,
+opt-in LLM judge that only runs on the minority of cases Tiers 1–2 flag but
+can't resolve — see [`STUDY.md`](./STUDY.md) for the full tier breakdown.
 
 ## Success metrics this is designed against
 
 These are the targets the tool is built to move, in line with how reliability
-work gets measured on a real team — not results claimed from a 6-trace demo:
+work gets measured on a real team — not results claimed from a benchmark of
+14 traces:
 
 | Metric | Before | Target |
 |---|---|---|
-| Mean time to root cause | ~30–90 min, manual | < 5 min |
+| Mean time to root cause | Manual, doesn't scale | < 5 min |
 | Regression test creation | Manual, often skipped | Automatic, every incident |
 | Repeat incidents (same root cause) | Recurs silently | Reduced via permanent CI gate |
 | Eval/regression coverage | Ad hoc | Grows with every real incident |
@@ -140,12 +142,6 @@ To enable Tier 3:
 pip install -e ".[judge]"
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 ```
-
-The one miss is intentional to leave in, not a bug: a trace where the agent
-retrieves the correct policy and then directly contradicts it — a reasoning
-error no pattern-based detector can catch. See [`STUDY.md`](./STUDY.md) for
-the full methodology, per-trace breakdown, and why that miss is the most
-important row in the table.
 
 ## Using it on a real incident
 
