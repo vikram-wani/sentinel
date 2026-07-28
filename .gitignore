@@ -16,3 +16,4 @@ artifacts/
 Thumbs.db
 .vscode/
 .idea/
+.env

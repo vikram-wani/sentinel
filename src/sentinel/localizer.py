@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from .schema import Finding, IncidentReport, Localization, Trace
 from .detectors.deterministic import run_all
+from .reasoning_tier import detect_reasoning_errors
 
 _DECISION_CATEGORIES = {"missing_tool", "wrong_tool", "tool_loop"}
 _SYMPTOM_CATEGORIES = {"fabricated_specifics", "ungrounded_answer", "ignored_tool_error"}
@@ -34,6 +35,7 @@ _FIX_LOCATION = {
     "ignored_tool_error": "Tool-error handling path in agent prompt",
     "fabricated_specifics": "Answer generation: grounding/citation constraint",
     "context_overflow": "Context management (compaction/summarization)",
+    "reasoning_error": "Answer-generation prompt: consistency/grounding check against retrieved evidence",
 }
 
 _DO_NOT_MODIFY = {
@@ -44,6 +46,7 @@ _DO_NOT_MODIFY = {
     "ignored_tool_error": ["Retrieval pipeline", "Model choice"],
     "fabricated_specifics": ["Retrieval pipeline (evidence was available)", "Model choice"],
     "context_overflow": ["Prompts (content is fine; volume is not)"],
+    "reasoning_error": ["Retrieval pipeline (evidence was correct)", "Tool selection"],
 }
 
 
@@ -55,7 +58,20 @@ def localize(findings: list[Finding]) -> Localization | None:
     # Report the substitution as root; the omission is its shadow, not a second cause.
     if any(f.category == "wrong_tool" for f in decision):
         decision = [f for f in decision if f.category != "missing_tool"]
-    pool = decision if decision else findings
+
+    # Deterministic findings (confidence 1.0 — tiers 1 and 2's confirmed heuristic
+    # hits) always outrank probabilistic ones (Tier 3 judge, unconfirmed Tier 2
+    # candidates), regardless of which step index sorts earlier. A guess about
+    # meaning does not get to override a checkable fact.
+    deterministic = [f for f in findings if f.confidence >= 1.0]
+
+    if decision:
+        pool = decision
+    elif deterministic:
+        pool = deterministic
+    else:
+        pool = findings  # only probabilistic findings exist — use them, clearly labeled as such
+
     root = sorted(pool, key=lambda f: (f.step_index, _SEV_RANK.get(f.severity.value, 9)))[0]
     propagation = [f for f in findings if f is not root]
     return Localization(
@@ -69,7 +85,7 @@ def localize(findings: list[Finding]) -> Localization | None:
 
 
 def analyze(trace: Trace) -> IncidentReport:
-    findings = run_all(trace)
+    findings = run_all(trace) + detect_reasoning_errors(trace)
     loc = localize(findings)
     return IncidentReport(
         trace_id=trace.trace_id,

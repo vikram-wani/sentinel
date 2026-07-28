@@ -76,12 +76,83 @@ claim-vs-evidence consistency, or a much more specific structural signal than
 exists in this trace format today. Both are real work, not a quick fix, which
 is why it's documented here instead of quietly special-cased away.
 
+## Day 3: closing the gap without abandoning the thesis
+
+The miss above sat unresolved for a full day on purpose — closing it properly
+meant resolving a real tension first: catching a semantic contradiction seems
+to require an LLM judge, and this project's core claim is "deterministic,
+not another flaky LLM judge." The resolution is a two-tier addition, not one:
+
+**Tier 2 — a code-based contradiction heuristic.** Deterministic, zero API
+calls, same "cannot flip on identical input" guarantee as the original seven
+detectors. It scans evidence for restrictive language ("final sale," "not
+eligible," "non-refundable") near a topic the final answer treats
+affirmatively, using literal keyword matching plus a topic-word overlap
+check — not language understanding. It generates *candidates*, not verdicts.
+
+**Tier 3 — a scoped LLM judge, opt-in.** Only invoked on Tier 2's candidates,
+never on a whole trace. Given only the relevant evidence sentence and the
+final answer, it answers one falsifiable question: does the answer contradict
+the evidence? Its findings carry confidence below 1.0 and can never outrank a
+deterministic finding in the localizer — the same rule that's governed this
+project since Day 1.
+
+**Without a key, Tier 2 alone resolved the original miss.** `sentinel bench`
+in keyless mode now correctly localizes `trace-reasoning-error-uncaught` —
+category and step both match ground truth, at confidence 0.55, explicitly
+labeled `UNCONFIRMED` in the report. That's not the same as a confirmed
+finding, and the tool says so in its own output rather than rounding up.
+
+**Two new traces were added specifically to break Tier 2**, before declaring
+any of this finished — the same discipline as Day 2:
+
+- `trace-restriction-different-topic`: evidence restricts one topic (gift
+  cards), the answer affirms an unrelated one (a sweater exchange). This
+  caught a real bug on first run — the answer's own "non-refundable" wasn't
+  recognized because the phrase list only had the spaced variant "not
+  refundable," so the suppression check that should have fired silently
+  didn't. Fixed by adding the hyphenated form. This is a legitimate keyword-
+  coverage bug, not an architectural limit, and it's fixed.
+- `trace-exception-clause-tricky`: evidence states a restriction *with an
+  exception* ("final sale, except for defective products..."), and the
+  answer correctly applies that exception. Tier 2 cannot parse exceptions —
+  it flags this as a candidate every time, which is a **known, permanent,
+  keyless-mode limitation**, left failing on purpose. Mocked end-to-end
+  testing confirms Tier 3, when live, correctly reads the exception and
+  returns `CONSISTENT`, resolving the trace to `HEALTHY` — but that
+  resolution has only been verified against a mocked judge response in this
+  environment, not a live API call. Confirming it for real requires a live
+  key, run from the maintainer's own machine, before this claim moves from
+  "designed and mock-tested" to "measured."
+
+**Current result, keyless: 13/14.** The one remaining failure is the exact
+one predicted and designed to fail — not a surprise, not a regression.
+
+| Tier | Traces resolved | Cost | Guarantee |
+|---|---|---|---|
+| 1 — deterministic detectors | 10 of 14 | free | confidence 1.0, cannot flip |
+| 2 — code heuristic | +1 (the original miss) | free | confidence 1.0 candidate → 0.55 unconfirmed finding |
+| 2, known gap | −1 (exception-clause trace) | — | requires Tier 3 to resolve |
+| 3 — LLM judge (mocked) | would resolve the gap | opt-in, per-call | confidence < 1.0, can't outrank Tiers 1–2 |
+
+## What Day 3 has not yet verified
+
+Everything above except one claim was tested in this environment, including
+against mocked Tier 3 responses matching the exact system prompt and output
+format Tier 3 uses live. What has **not** been verified: a real call to the
+Anthropic API, from the maintainer's own machine, against the live traces.
+That's the difference between "the design is sound and the parsing logic is
+correct" and "the judge actually works." Until that run happens and this
+paragraph gets replaced with a real number, treat Tier 3's accuracy as
+designed-and-mocked, not measured.
+
 ## What this benchmark is not
 
-Twelve traces is not statistical proof of anything. It's a floor: a fixed,
-inspectable set of cases that must keep passing (except the one documented
-miss) as the detectors evolve, run automatically in CI on every push. Treat
-the 11/12 number as "hasn't regressed on these specific known cases," not as
-"91% accurate on production traffic." The next honest step is running this
-against real, messier production traces — where the failure categories won't
-be as cleanly separable as they are here by construction.
+Fourteen traces is not statistical proof of anything. It's a floor: a fixed,
+inspectable set of cases that must keep passing (except the one documented,
+permanent Tier 2 gap) as the detectors evolve, run automatically in CI on
+every push. Treat the 13/14 number as "hasn't regressed on these specific
+known cases," not as "93% accurate on production traffic." The next honest
+step is running this against real, messier production traces — where the
+failure categories won't be as cleanly separable as they are here by
+construction.

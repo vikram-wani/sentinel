@@ -1,0 +1,12 @@
+{
+  "trace_id": "trace-restriction-different-topic",
+  "app": "support-agent",
+  "expectations": {"must_be_grounded": true},
+  "steps": [
+    {"type": "user", "input": "Can I exchange this sweater for a different size? Also, are gift cards refundable?"},
+    {"type": "plan", "name": "planner", "output": "Look up exchange and gift card policy."},
+    {"type": "retrieval", "name": "search_policy", "input": "exchange policy gift cards", "output": ["Gift cards are non-refundable and cannot be redeemed for cash. Clothing items may be exchanged for a different size within 30 days of purchase."]},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 320},
+    {"type": "assistant", "output": "Yes, you can exchange the sweater for a different size within 30 days. Gift cards are non-refundable, so that part isn't eligible for cash back."}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "trace_id": "trace-exception-clause-tricky",
+  "app": "support-agent",
+  "expectations": {"must_be_grounded": true},
+  "steps": [
+    {"type": "user", "input": "My blender arrived defective and I already opened the box. Can I return it?"},
+    {"type": "plan", "name": "planner", "output": "Look up return policy for opened items."},
+    {"type": "retrieval", "name": "search_policy", "input": "return policy opened items defective", "output": ["Opened items are final sale, except for defective products, which may be returned within 14 days with proof of purchase."]},
+    {"type": "llm_call", "name": "gpt-4o", "tokens": 340},
+    {"type": "assistant", "output": "Yes, since your blender was defective, you can return it within 14 days as long as you have proof of purchase."}
+  ]
+}

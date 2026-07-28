@@ -100,15 +100,26 @@ sentinel bench
 ```
 
 ```
-Root-cause category accuracy : 11/12
-Root-cause step accuracy     : 11/12
+Tier 3 (LLM judge) inactive — running Tiers 1-2 only (deterministic + heuristic, zero keys)
+
+Root-cause category accuracy : 13/14
+Root-cause step accuracy     : 13/14
 ```
 
-Half the benchmark is deliberately adversarial: multi-fault traces where the
-root must be the *earliest* decision and not the most recent one, a trace
-where the loudest finding happens late and the true root is an earlier, quieter
-one, and two "looks-suspicious-but-isn't" traces that check the detectors stay
-quiet when nothing's actually wrong.
+That's the keyless result — Tiers 1 and 2 only, zero API calls, zero setup.
+Most of the benchmark is deliberately adversarial: multi-fault traces where
+the root must be the *earliest* decision, a trace where the loudest finding
+happens late and the true root is earlier and quieter, precision traps that
+check the detectors stay quiet when nothing's wrong, and — new as of Day 3 —
+traces built specifically to find Tier 2's own blind spots.
+
+The one keyless miss is permanent by design, not a bug: Tier 2's code-based
+heuristic can catch a restrictive claim contradicted by the final answer, but
+it can't parse an *exception* to that restriction. Closing that gap is what
+Tier 3 — a narrowly-scoped LLM judge, opt-in, confidence-capped below
+deterministic findings — exists for. See [`STUDY.md`](./STUDY.md) for the
+full tier-by-tier breakdown, including what's been verified against mocked
+judge responses versus what still needs a live API key to confirm.
 
 The one miss is intentional to leave in, not a bug: a trace where the agent
 retrieves the correct policy and then directly contradicts it — a reasoning

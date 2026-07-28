@@ -62,9 +62,17 @@ def cmd_analyze(args):
     _analyze_one(Path(args.trace), Path(args.out) if args.out else None)
 
 
+def _tier_status_line() -> str:
+    from .judge import judge_available
+    if judge_available():
+        return f"{GREEN}Tier 3 (LLM judge) active{RESET} — ANTHROPIC_API_KEY detected"
+    return f"{DIM}Tier 3 (LLM judge) inactive{RESET} — running Tiers 1-2 only (deterministic + heuristic, zero keys)"
+
+
 def cmd_demo(args):
     traces = sorted((EXAMPLES / "traces").glob("*.json"))
-    print(f"\n{BOLD}Sentinel demo — {len(traces)} bundled traces, zero API keys, fully deterministic{RESET}")
+    print(f"\n{BOLD}Sentinel demo — {len(traces)} bundled traces{RESET}")
+    print(f"  {_tier_status_line()}\n")
     for t in traces:
         _analyze_one(t, Path(args.out) if args.out else None)
 
@@ -90,14 +98,16 @@ def cmd_bench(args):
         step_hits += step_ok
         rows.append((trace.trace_id, gt["root_category"], pred_cat, cat_ok, gt["root_step_index"], pred_step, step_ok))
 
-    print(f"\n{BOLD}Sentinel self-benchmark: localization vs ground truth ({total} labeled traces){RESET}\n")
+    print(f"\n{BOLD}Sentinel self-benchmark: localization vs ground truth ({total} labeled traces){RESET}")
+    print(f"  {_tier_status_line()}\n")
     for tid, gcat, pcat, cok, gstep, pstep, sok in rows:
         mark = f"{GREEN}✓{RESET}" if (cok and sok) else f"{RED}✗{RESET}"
         print(f"  {mark} {tid:<34} category: {gcat:<20} -> {pcat:<20} "
               f"step: {gstep} -> {pstep}")
     print(f"\n  Root-cause category accuracy : {BOLD}{cat_hits}/{total}{RESET}")
     print(f"  Root-cause step accuracy     : {BOLD}{step_hits}/{total}{RESET}")
-    print(f"\n{DIM}Deterministic detectors cannot flip on identical input; rerun this to verify.{RESET}\n")
+    print(f"\n{DIM}Deterministic detectors (Tiers 1-2) cannot flip on identical input.")
+    print(f"Tier 3, when active, is a model call and may vary run to run.{RESET}\n")
     if args.fail_under and total and (cat_hits / total) < args.fail_under:
         sys.exit(1)
 
