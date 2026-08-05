@@ -42,18 +42,35 @@ def _evidence_corpus(trace: Trace) -> str:
 # ---------------------------------------------------------------- detectors
 
 def detect_missing_tool(trace: Trace) -> list[Finding]:
+    """A tool listed twice in expected_tools means "must be called at least
+    twice" (e.g. cancelling two separate orders with the same tool, different
+    arguments). This was originally a set-membership check, which meant a
+    tool called ONCE registered as "present" even when the trace required a
+    second call with different arguments -- a real bug, found via a real
+    tau-bench trace (task 81: agent cancels one of two required orders,
+    calls cancel_pending_order once, old logic saw it in the called-set and
+    stayed silent). Counter-based comparison catches this; plain presence
+    checks (single expected occurrence) behave identically to before.
+    """
     exp = trace.expectations
     if not exp or not exp.expected_tools:
         return []
-    called = {s.name for s in trace.steps_of(StepType.TOOL_CALL)}
+    called_counts = Counter(s.name for s in trace.steps_of(StepType.TOOL_CALL))
+    expected_counts = Counter(exp.expected_tools)
     findings = []
-    for tool in exp.expected_tools:
-        if tool not in called:
+    for tool, required_n in expected_counts.items():
+        actual_n = called_counts.get(tool, 0)
+        if actual_n < required_n:
             # anchor to the decision point: the plan step if present, else first llm/assistant step
+            # NOTE: for the "called some but not enough" case there is no single
+            # missing-call step to point to -- this anchor is a defensible
+            # approximation (earliest planning-like decision), not a precise
+            # locate of where the extra call should have happened.
             anchor = next(
                 (s for s in trace.steps if s.type == StepType.PLAN),
                 next((s for s in trace.steps if s.type in (StepType.LLM_CALL, StepType.ASSISTANT)), trace.steps[0]),
             )
+            times_desc = f"called {actual_n} time(s), expected {required_n}" if actual_n else "never called"
             findings.append(Finding(
                 detector="missing_tool",
                 category="missing_tool",
@@ -61,8 +78,8 @@ def detect_missing_tool(trace: Trace) -> list[Finding]:
                 severity=Severity.HIGH,
                 confidence=1.0,
                 evidence=[
-                    f"Spec expects tool '{tool}' to be called for this query.",
-                    f"Tools actually called: {sorted(t for t in called if t)or ['<none>']}.",
+                    f"Spec expects tool '{tool}' to be called {required_n} time(s) for this query; {times_desc}.",
+                    f"Tools actually called (with counts): {dict(called_counts) or '<none>'}.",
                     f"Decision point: step {anchor.index} ({anchor.type.value}).",
                 ],
                 fix_hint=f"Planner/routing prompt does not enforce mandatory '{tool}' invocation. Add a routing constraint; do not switch models.",
@@ -145,25 +162,145 @@ def detect_empty_retrieval_ungrounded(trace: Trace) -> list[Finding]:
     return findings
 
 
+_DISCLOSURE_PHRASES = [
+    "error", "unable to", "unfortunately", "cannot", "can't", "can not",
+    "sorry", "apologize", "not able", "failed", "an issue", "wasn't able",
+    "was not able", "no longer possible", "not possible",
+]
+
+
+def _identifier_values(args) -> set[str]:
+    """Pull out string values from a tool call's arguments that look like
+    entity identifiers (order IDs, item IDs, user IDs) worth matching against
+    later calls, to detect 'tried a different tool on the same thing.'"""
+    if not isinstance(args, dict):
+        return set()
+    out = set()
+    for v in args.values():
+        if isinstance(v, str) and len(v) >= 5:
+            out.add(v)
+        elif isinstance(v, list):
+            out.update(x for x in v if isinstance(x, str) and len(x) >= 5)
+    return out
+
+
+def _same_purpose_family(name_a: str, name_b: str) -> bool:
+    """Two tool names count as alternative methods for the same goal if they
+    share everything up through a '_by_' marker (find_user_id_by_email vs
+    find_user_id_by_name_zip): different data, same purpose, and a failure
+    in one followed by success in the other is a retry, not a cover-up.
+    Found necessary because the argument-overlap check alone misses this --
+    an email and a name-plus-zip share no string value at all."""
+    marker = "_by_"
+    if marker in name_a and marker in name_b:
+        return name_a.split(marker)[0] == name_b.split(marker)[0]
+    return False
+
+
 def detect_ignored_tool_error(trace: Trace) -> list[Finding]:
+    """A tool error is only a real problem if the agent neither recovered
+    from it nor told the user about it. The original version of this
+    detector checked only whether the literal word "error" appeared in the
+    final answer -- which flagged routine, successfully-recovered retries
+    (an auth lookup failing, then correctly falling back to a different
+    method) as if the agent had silently covered up a failure. Found via
+    real tau-bench traces (task28, task98), not synthetic ones: 81 of 186
+    false positives in a 274-trace precision check traced to this single
+    gap. Fixed two ways: check for a later successful action addressing the
+    same tool or the same entity (recovery), and broaden disclosure
+    detection past the single word "error" (honest reporting in the agent's
+    own words, not just that one token).
+    """
     findings = []
     final = trace.final_answer
-    for s in trace.steps:
-        if s.type == StepType.TOOL_RESULT and s.error:
-            if final is not None and "error" not in _text(final.output).lower():
-                findings.append(Finding(
-                    detector="ignored_error",
-                    category="ignored_tool_error",
-                    step_index=s.index,
-                    severity=Severity.HIGH,
-                    confidence=1.0,
-                    evidence=[
-                        f"Step {s.index}: tool '{s.name}' returned error: {s.error[:140]}",
-                        f"Step {final.index}: final answer proceeds confidently without surfacing the failure.",
-                    ],
-                    fix_hint="Error handling gap: agent should retry or disclose. Add an error-path instruction; the model itself is not the problem.",
-                ))
+    final_text_lower = _text(final.output).lower() if final else ""
+
+    tool_calls = [s for s in trace.steps if s.type == StepType.TOOL_CALL]
+    tool_results = [s for s in trace.steps if s.type == StepType.TOOL_RESULT]
+
+    for err_result in tool_results:
+        if not err_result.error:
+            continue
+
+        # Find the call that produced this error: nearest preceding TOOL_CALL
+        # with the same name and not already matched to an earlier result.
+        failed_call = next(
+            (c for c in reversed(tool_calls) if c.name == err_result.name and c.index <= err_result.index),
+            None,
+        )
+        failed_ids = _identifier_values(failed_call.input) if failed_call else set()
+
+        # Recovery check: does any later successful result either reuse the
+        # same tool, or touch the same entity via a different tool?
+        recovered = False
+        for later_result in tool_results:
+            if later_result.index <= err_result.index or later_result.error:
+                continue
+            if later_result.name == err_result.name:
+                recovered = True
+                break
+            if _same_purpose_family(err_result.name or "", later_result.name or ""):
+                recovered = True
+                break
+            later_call = next((c for c in tool_calls if c.name == later_result.name
+                                and c.index <= later_result.index), None)
+            if later_call and failed_ids & _identifier_values(later_call.input):
+                recovered = True
+                break
+
+        if recovered:
+            continue
+
+        disclosed = any(p in final_text_lower for p in _DISCLOSURE_PHRASES)
+        if disclosed:
+            continue
+
+        findings.append(Finding(
+            detector="ignored_error",
+            category="ignored_tool_error",
+            step_index=err_result.index,
+            severity=Severity.HIGH,
+            confidence=1.0,
+            evidence=[
+                f"Step {err_result.index}: tool '{err_result.name}' returned error: {err_result.error[:140]}",
+                f"No later successful call retried the same tool or touched the same entity.",
+                f"Step {final.index if final else '?'}: final answer does not acknowledge the failure "
+                f"(checked for {len(_DISCLOSURE_PHRASES)} common disclosure phrasings, found none).",
+            ],
+            fix_hint="Error handling gap: agent should retry or disclose. Add an error-path instruction; the model itself is not the problem.",
+        ))
     return findings
+
+
+_NUMBER_IN_TEXT = re.compile(r"-?\d[\d,]*\.?\d*")
+
+
+def _corpus_numeric_values(corpus: str) -> set[float]:
+    """All numbers appearing anywhere in evidence, parsed to float. Used to
+    catch sign-flipped matches: a stored price_difference of -16.63 (negative
+    because it's a refund direction) and an answer correctly telling the
+    customer "$16.63 will be refunded" (positive, because that's how a human
+    describes a refund) are the same real number. A literal substring check
+    treats these as unrelated and flags a correct answer as fabricated."""
+    out = set()
+    for m in _NUMBER_IN_TEXT.finditer(corpus):
+        try:
+            out.add(float(m.group().replace(",", "")))
+        except ValueError:
+            pass
+    return out
+
+
+def _is_grounded(tok: str, corpus: str, corpus_numbers: set[float]) -> bool:
+    if tok in corpus:
+        return True
+    # Try numeric comparison (handles $, %, comma formatting, and sign flips)
+    stripped = tok.lstrip("$#").rstrip("%").replace(",", "")
+    try:
+        val = float(stripped)
+    except ValueError:
+        return False
+    return any(abs(val - c) < 0.01 or abs(-val - c) < 0.01 for c in corpus_numbers)
 
 
 def detect_fabricated_specifics(trace: Trace) -> list[Finding]:
@@ -171,6 +308,13 @@ def detect_fabricated_specifics(trace: Trace) -> list[Finding]:
 
     Deliberately conservative: only flags 'hard' tokens (order IDs, dollar amounts,
     percentages, long numbers). Prose claims are left to the optional LLM layer.
+
+    Numeric tokens are compared by value, not literal string, and checked
+    against both the value and its negation (see _is_grounded): a refund
+    amount is naturally reported as positive even when its source
+    price-difference field is stored as negative. Non-numeric identifiers
+    (order IDs, SKU-style codes) still require an exact literal match --
+    there's no meaningful "value" to compare for those, only presence.
     """
     exp = trace.expectations
     if exp and not exp.must_be_grounded:
@@ -180,7 +324,9 @@ def detect_fabricated_specifics(trace: Trace) -> list[Finding]:
         return []
     answer = _text(final.output)
     corpus = _evidence_corpus(trace)
-    fabricated = sorted({tok for tok in _NUMBERISH.findall(answer) if tok not in corpus})
+    corpus_numbers = _corpus_numeric_values(corpus)
+    fabricated = sorted({tok for tok in _NUMBERISH.findall(answer)
+                          if not _is_grounded(tok, corpus, corpus_numbers)})
     if not fabricated:
         return []
     return [Finding(
