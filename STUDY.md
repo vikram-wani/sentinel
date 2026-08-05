@@ -391,3 +391,108 @@ sequencing/state-dependency, entity resolution across multiple candidates,
 and incomplete-but-otherwise-correct tool arguments. That's legitimate scope
 for whatever comes after this is written up, not something to context-switch
 into mid-measurement.
+
+### Closing the gaps: four detector fixes, all shipped and verified
+
+Picked up the "next" list above in a second session. Every fix here follows
+the same discipline as the rest of this project: diagnose against a real
+example, implement, verify zero regression on the original 14-trace
+benchmark, verify the specific target case, run the full 274/182 batch
+check, and — for the first time this project has had the chance to do this
+— get the result **independently reproduced on a second machine** before
+calling anything done.
+
+**`ignored_tool_error`** originally checked one thing: does the literal word
+"error" appear anywhere in the final answer. That flagged routine,
+successfully-recovered retries as if the agent had covered up a failure — an
+email lookup failing, correctly falling back to name-plus-zip, task
+completing fine. Fixed with two real checks: did a later call retry the same
+tool, an alternate same-purpose tool (matched by a shared `_by_` prefix,
+`find_user_id_by_email` vs `find_user_id_by_name_zip` share no argument
+value at all, so identifier-overlap alone wasn't enough), or the same
+entity; and does the final answer disclose the issue in any of fifteen
+common phrasings, not just that one word.
+
+**`fabricated_specifics`** did literal substring matching. A genuinely
+correct answer ("$16.63 will be refunded") failed to match its own source
+data, stored as `price_difference: -16.63`, negative because it's a refund
+direction, positive because that's how a human describes a refund to a
+customer. Same number, flipped sign, literal string comparison sees them as
+unrelated. Fixed by comparing numeric value, including the negation, instead
+of raw text.
+
+Fixing these two together was not a clean, additive win, and the honest
+version of that story matters as much as the fix itself. Precision went
+32.1% → 44.9% → 86.5% across the two fixes in sequence, but coverage on the
+182 failing traces *also* dropped, 89.6% → 79.7% → 62.1% by the raw count.
+Before shipping anything, that drop got checked against Day 4's own 24
+verified real-failure labels rather than trusted as a percentage: 22/24 → 16/24
+caught. Every one of the 8 traces that went silent had
+`sentinel_has_detector: false` in Day 4's own labeling — meaning none of
+them were ever being *correctly* diagnosed, before or after. They were being
+caught by the same noise that was corrupting precision on healthy traces,
+accidentally overlapping with real failures without ever getting the
+category right. Removing the noise didn't cost real capability; it removed
+an illusion of capability that was never actionable to begin with.
+
+**`wrong_tool_argument`** (new detector, not a fix) checks one hard,
+checkable fact: does an item referenced in a consequential call
+(return/exchange/modify) actually belong to the order that call names, per
+that order's own retrieved contents. Deliberately narrow — checked directly
+against the 9 traces in this failure family before building anything, and
+confirmed it only recovers 1 of them (`task16-trial0`, a wristwatch return
+misapplied across two orders). The other 8 need semantic judgment (which
+item did the user actually mean) or information the agent never retrieved
+in the first place (the correct item sitting in an order nobody looked at) —
+neither is something a structural rule can supply. Zero new false positives.
+Category accuracy on the 24 verified traces: 9/24 → 10/24.
+
+**`ordering_error`** (new detector) checks whether a successful
+`modify_pending_order_items` call is followed by a *later, failed* call on
+the same order — the exact shape independently replicated across two trials
+of `task98`. Verified this only cleanly applies to 2 of the 4 traces in this
+family; `task41` and `task42` have the same underlying problem but no
+failed call to point to, since the dependent action was never attempted at
+all rather than attempted and rejected. That's a `missing_tool` shape, not
+this detector's, and it's already partially covered there. Zero new false
+positives. Category accuracy: 10/24 → 12/24.
+
+**Net effect of all four fixes, independently confirmed on two machines:**
+
+| | Before | After |
+|---|---|---|
+| Precision (274 clean passing traces) | 32.1% | 86.9% |
+| False positives from the two miscalibrated detectors | 161 | 12 |
+| Category accuracy, 24 verified real failures | ~9/24 | 12/24 |
+| Original 14-trace benchmark | unchanged | unchanged, zero regression |
+
+### What I chose not to build, and why
+
+Two gaps from the original four remain: entity resolution across multiple
+candidates (`task102`), and incomplete-but-otherwise-correct arguments
+(`task21`). Both were checked directly against real data before deciding,
+not waved off:
+
+`task102`'s wrong order was a genuinely *delivered* order — the tool call
+succeeded, correctly, on the wrong target. The correct order was never
+retrieved at all, so there is no data in the trace for any structural rule
+to compare against. `task21`'s omitted item never appears in any tool call
+or tool result anywhere in the trace — `get_product_details` was never
+called for it at all, it exists only in the user's raw message text.
+
+Neither has a checkable structural fact underneath it. Both require judging
+what the user actually meant — either which of several plausible entities,
+or whether a natural-language request was fully addressed — which is
+understanding, not verification. Forcing a regex-shaped rule onto either
+would produce something either too loose (matching unrelated numbers in
+free text) or too narrow to ever fire again outside the one trace that
+inspired it. That would spend the same credibility the last four fixes
+built, on a rule that doesn't deserve it.
+
+The honest next step for both isn't a new Tier 1/2 detector. It's extending
+Tier 3 — the part of this system already built to handle exactly this kind
+of judgment — to two new question shapes: *of these observed candidates, is
+this the one the user meant*, and *does this final action address
+everything the user actually asked for*. Deterministic first, LLM last was
+never a claim that everything is checkable without judgment. Some things
+aren't, and pretending otherwise would be a worse failure than admitting it.
