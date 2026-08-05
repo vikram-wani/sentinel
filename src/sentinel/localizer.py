@@ -36,6 +36,7 @@ _FIX_LOCATION = {
     "fabricated_specifics": "Answer generation: grounding/citation constraint",
     "context_overflow": "Context management (compaction/summarization)",
     "reasoning_error": "Answer-generation prompt: consistency/grounding check against retrieved evidence",
+    "wrong_tool_argument": "Entity resolution before executing a consequential call: cross-check the target order/item against the specific order named in the call",
 }
 
 _DO_NOT_MODIFY = {
@@ -47,6 +48,7 @@ _DO_NOT_MODIFY = {
     "fabricated_specifics": ["Retrieval pipeline (evidence was available)", "Model choice"],
     "context_overflow": ["Prompts (content is fine; volume is not)"],
     "reasoning_error": ["Retrieval pipeline (evidence was correct)", "Tool selection"],
+    "wrong_tool_argument": ["Tool selection (the tool itself was correct)", "Retrieval pipeline"],
 }
 
 

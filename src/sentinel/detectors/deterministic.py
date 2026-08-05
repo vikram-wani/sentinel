@@ -343,6 +343,83 @@ def detect_fabricated_specifics(trace: Trace) -> list[Finding]:
     )]
 
 
+_CONSEQUENTIAL_ITEM_TOOLS = {
+    "return_delivered_order_items",
+    "exchange_delivered_order_items",
+    "modify_pending_order_items",
+}
+
+
+def _order_item_membership(trace: Trace) -> dict[str, set[str]]:
+    """order_id -> the set of item_ids actually in that order, built from
+    every get_order_details result observed in the trace. Only orders the
+    agent actually retrieved are known here -- by design. If the agent never
+    looked at the order that had the right item, that information was never
+    in the trace to check against, and this detector correctly has nothing
+    to say about it. That's a real limit, not a bug: see STUDY.md."""
+    membership: dict[str, set[str]] = {}
+    for s in trace.steps:
+        if s.type == StepType.TOOL_RESULT and s.name == "get_order_details" and isinstance(s.output, dict):
+            oid = s.output.get("order_id")
+            items = s.output.get("items") or []
+            if oid and isinstance(items, list):
+                membership[oid] = {i.get("item_id") for i in items if isinstance(i, dict) and i.get("item_id")}
+    return membership
+
+
+def detect_cross_order_item_mismatch(trace: Trace) -> list[Finding]:
+    """A narrow, deliberately conservative slice of the broader
+    "wrong entity" failure family found during Day 4 labeling (tasks 28, 80,
+    83, 21, 16, 32, 34, 72, and a task3 sibling trial all shared some form
+    of "grounded value applied to the wrong target," but only one specific
+    shape of that is a hard, checkable fact rather than a judgment call:
+    does an item referenced in a consequential call (return, exchange,
+    modify) actually belong to the order that call names? item_ids that
+    belong to a *different*, also-observed order is unambiguous, no
+    semantic understanding required. This does not catch cases where the
+    agent picked a wrong-but-valid item within its own correct order (that
+    needs to know what the user actually wanted), or cases where the
+    correct item lived in an order the agent never retrieved at all (the
+    information to catch it was never in the trace to begin with). Checked
+    directly against Day 4's labeled traces: this pattern alone recovers
+    task16-trial0; it does not recover 83, 28, 34, 72, 32, or 80, which
+    require judgment this detector deliberately does not attempt.
+    """
+    membership = _order_item_membership(trace)
+    if not membership:
+        return []
+    findings = []
+    for s in trace.steps:
+        if s.type != StepType.TOOL_CALL or s.name not in _CONSEQUENTIAL_ITEM_TOOLS:
+            continue
+        args = s.input or {}
+        oid = args.get("order_id")
+        item_ids = args.get("item_ids") or []
+        if oid not in membership:
+            continue  # this order was never retrieved; nothing to check against
+        wrong_items = [iid for iid in item_ids if iid not in membership[oid]]
+        if not wrong_items:
+            continue
+        # which order (if any observed) does the misplaced item actually belong to
+        actual_home = next((o for o, items in membership.items() if any(w in items for w in wrong_items)), None)
+        findings.append(Finding(
+            detector="cross_order_item_mismatch",
+            category="wrong_tool_argument",
+            step_index=s.index,
+            severity=Severity.CRITICAL,
+            confidence=1.0,
+            evidence=[
+                f"Step {s.index}: {s.name} called on order {oid} with item_ids {wrong_items}, "
+                f"which do not belong to that order per its own retrieved contents.",
+                f"Those item(s) belong to order {actual_home} instead." if actual_home
+                else "Those item(s) were not observed in any retrieved order in this trace.",
+            ],
+            fix_hint="Cross-reference item_ids against the target order's own contents before executing "
+                      "a consequential action, not just against 'some order seen earlier in the conversation.'",
+        ))
+    return findings
+
+
 def detect_context_overflow(trace: Trace) -> list[Finding]:
     budget = trace.expectations.context_budget_tokens if trace.expectations else None
     if not budget:
@@ -373,6 +450,7 @@ ALL_DETECTORS = [
     detect_empty_retrieval_ungrounded,
     detect_ignored_tool_error,
     detect_fabricated_specifics,
+    detect_cross_order_item_mismatch,
     detect_context_overflow,
 ]
 
