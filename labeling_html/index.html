@@ -1,0 +1,82 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Labeling sample index</title>
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --ink: #1b2430; --muted: #5b6472;
+    --border: #dde2e9; --green: #1f8a5f; --red: #cf3b3b; --amber: #c98a1f;
+    --mono: 'Consolas','Menlo','Monaco',monospace;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: -apple-system,Segoe UI,Helvetica,Arial,sans-serif;
+          max-width: 900px; margin: 0 auto; padding: 32px 24px 100px; line-height: 1.55; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .meta { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+  .stratum { display:inline-block; padding: 2px 10px; border-radius: 12px; background:#eef1f5; font-weight:600; }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+             padding: 18px 22px; margin-bottom: 20px; }
+  section h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted);
+                margin: 0 0 12px; }
+  .policy { white-space: pre-wrap; font-size: 14px; }
+  .action-row { font-family: var(--mono); font-size: 13.5px; padding: 4px 0; }
+  .missing { color: var(--red); font-weight: 600; }
+  .flag { color: var(--red); font-weight: 600; }
+  ol { margin: 0; padding-left: 22px; }
+  .msg { border-bottom: 1px solid var(--border); padding: 10px 0; display: flex; gap: 12px; }
+  .msg:last-child { border-bottom: none; }
+  .idx { font-family: var(--mono); color: var(--muted); font-size: 12px; width: 30px; flex-shrink:0; padding-top:3px; }
+  .role { font-family: var(--mono); font-size: 12px; font-weight: 700; width: 90px; flex-shrink:0; padding-top: 3px; }
+  .role-user { color: #2451d6; }
+  .role-assistant { color: var(--ink); }
+  .role-tool { color: var(--muted); }
+  .role-tool_call { color: var(--amber); }
+  .content { white-space: pre-wrap; font-size: 14px; flex: 1; }
+  .content.mono { font-family: var(--mono); font-size: 13px; }
+  .error { color: var(--red); font-weight: 700; }
+  .toolcall-badge { display:inline-block; background:#faf3e6; color:var(--amber); border:1px solid #c98a1f44;
+                      border-radius: 6px; padding: 1px 8px; font-family: var(--mono); font-size:12.5px; margin-bottom:4px;}
+  .navbar { position: sticky; top: 0; background: var(--bg); padding: 10px 0; margin-bottom: 8px;
+             border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 13px; }
+  .navbar a { color: #2451d6; text-decoration: none; margin-right: 16px; }
+  .stub { font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; background:#161b22; color:#c9d1d9;
+           padding: 16px; border-radius: 8px; overflow-x:auto; }
+</style></head><body>
+
+<h1>Sample to label (35 traces)</h1>
+<div class="meta">Click through in order. Read policy + expected actions + full message sequence, decide root_category and root_step_index yourself, THEN paste the filled stub into your labels file. Do not run Sentinel until all are labeled.</div>
+<section><h2>Traces</h2><ol>
+<li class="action-row"><a href="task24_trial2.html">task 24, trial 2</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task28_trial1.html">task 28, trial 1</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task80_trial2.html">task 80, trial 2</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task81_trial0.html">task 81, trial 0</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task98_trial0.html">task 98, trial 0</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task76_trial3.html">task 76, trial 3</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task102_trial0.html">task 102, trial 0</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task72_trial2.html">task 72, trial 2</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task98_trial3.html">task 98, trial 3</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task83_trial0.html">task 83, trial 0</a> &nbsp; <span class="stratum">extra_only</span></li>
+<li class="action-row"><a href="task22_trial2.html">task 22, trial 2</a> &nbsp; <span class="stratum">missing_only</span></li>
+<li class="action-row"><a href="task55_trial0.html">task 55, trial 0</a> &nbsp; <span class="stratum">missing_only</span></li>
+<li class="action-row"><a href="task13_trial0.html">task 13, trial 0</a> &nbsp; <span class="stratum">missing_only</span></li>
+<li class="action-row"><a href="task21_trial0.html">task 21, trial 0</a> &nbsp; <span class="stratum">missing_only</span></li>
+<li class="action-row"><a href="task41_trial2.html">task 41, trial 2</a> &nbsp; <span class="stratum">missing_only</span></li>
+<li class="action-row"><a href="task23_trial3.html">task 23, trial 3</a> &nbsp; <span class="stratum">both</span></li>
+<li class="action-row"><a href="task48_trial0.html">task 48, trial 0</a> &nbsp; <span class="stratum">both</span></li>
+<li class="action-row"><a href="task111_trial1.html">task 111, trial 1</a> &nbsp; <span class="stratum">both</span></li>
+<li class="action-row"><a href="task93_trial0.html">task 93, trial 0</a> &nbsp; <span class="stratum">both</span></li>
+<li class="action-row"><a href="task33_trial3.html">task 33, trial 3</a> &nbsp; <span class="stratum">both</span></li>
+<li class="action-row"><a href="task22_trial0.html">task 22, trial 0</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task64_trial3.html">task 64, trial 3</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task33_trial0.html">task 33, trial 0</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task42_trial1.html">task 42, trial 1</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task66_trial3.html">task 66, trial 3</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task64_trial1.html">task 64, trial 1</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task32_trial3.html">task 32, trial 3</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task34_trial1.html">task 34, trial 1</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task16_trial0.html">task 16, trial 0</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task55_trial3.html">task 55, trial 3</a> &nbsp; <span class="stratum">toolset_correct</span></li>
+<li class="action-row"><a href="task40_trial0.html">task 40, trial 0</a> &nbsp; <span class="stratum">PASS</span></li>
+<li class="action-row"><a href="task108_trial0.html">task 108, trial 0</a> &nbsp; <span class="stratum">PASS</span></li>
+<li class="action-row"><a href="task13_trial2.html">task 13, trial 2</a> &nbsp; <span class="stratum">PASS</span></li>
+<li class="action-row"><a href="task3_trial3.html">task 3, trial 3</a> &nbsp; <span class="stratum">PASS</span></li>
+<li class="action-row"><a href="task3_trial1.html">task 3, trial 1</a> &nbsp; <span class="stratum">PASS</span></li>
+</ol></section></body></html>
