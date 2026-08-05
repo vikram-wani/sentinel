@@ -420,6 +420,71 @@ def detect_cross_order_item_mismatch(trace: Trace) -> list[Finding]:
     return findings
 
 
+_ORDER_LOCKING_TOOLS = {"modify_pending_order_items"}
+_ORDER_TARGETING_TOOLS = {
+    "modify_pending_order_address", "modify_pending_order_items",
+    "modify_pending_order_payment", "cancel_pending_order",
+}
+
+
+def detect_ordering_error(trace: Trace) -> list[Finding]:
+    """Two individually-correct operations on the same order, executed in a
+    sequence where the first locks the order and the second then fails as a
+    direct, structural consequence. Deliberately narrow: this only fires
+    when there is an actual failed result to point to. It does not catch
+    the sibling shape found in the same Day 4 sample (task41, task42) where
+    the second, dependent action was never attempted at all rather than
+    attempted and rejected -- that is an omission, not a sequencing error,
+    and belongs to missing_tool's territory, not this detector's. Rooted at
+    the earlier, locking call: that is the actual decision that mattered,
+    consistent with how this exact pattern was labeled by hand during Day 4
+    (task98, both trials -- two independent trials of the identical task
+    that failed in the identical way, itself evidence this is a systematic
+    tendency, not a one-off)."""
+    findings = []
+    calls = [s for s in trace.steps if s.type == StepType.TOOL_CALL]
+    results = sorted((s for s in trace.steps if s.type == StepType.TOOL_RESULT), key=lambda s: s.index)
+
+    def result_after(step_index):
+        return next((r for r in results if r.index > step_index), None)
+
+    for lock_call in calls:
+        if lock_call.name not in _ORDER_LOCKING_TOOLS:
+            continue
+        oid = (lock_call.input or {}).get("order_id")
+        if not oid:
+            continue
+        lock_result = result_after(lock_call.index)
+        if lock_result is None or lock_result.error:
+            continue  # the locking call itself didn't succeed; nothing to warn about
+
+        for later_call in calls:
+            if later_call.index <= lock_call.index or later_call.name not in _ORDER_TARGETING_TOOLS:
+                continue
+            if (later_call.input or {}).get("order_id") != oid:
+                continue
+            later_result = result_after(later_call.index)
+            if later_result and later_result.error:
+                findings.append(Finding(
+                    detector="ordering_error",
+                    category="ordering_error",
+                    step_index=lock_call.index,
+                    severity=Severity.HIGH,
+                    confidence=1.0,
+                    evidence=[
+                        f"Step {lock_call.index}: {lock_call.name} succeeded on order {oid}.",
+                        f"Step {later_call.index}: {later_call.name} on the same order {oid} then failed: "
+                        f"{later_result.error[:120]}",
+                        "The first call likely changed the order's state in a way that made the second impossible; "
+                        "reversing the order would probably have let both succeed.",
+                    ],
+                    fix_hint="Sequence state-changing operations on the same order by dependency, not by the "
+                             "order the user happened to mention them. Address/payment changes before item changes.",
+                ))
+                break  # one finding per locking call is enough
+    return findings
+
+
 def detect_context_overflow(trace: Trace) -> list[Finding]:
     budget = trace.expectations.context_budget_tokens if trace.expectations else None
     if not budget:
@@ -451,6 +516,7 @@ ALL_DETECTORS = [
     detect_ignored_tool_error,
     detect_fabricated_specifics,
     detect_cross_order_item_mismatch,
+    detect_ordering_error,
     detect_context_overflow,
 ]
 

@@ -37,6 +37,7 @@ _FIX_LOCATION = {
     "context_overflow": "Context management (compaction/summarization)",
     "reasoning_error": "Answer-generation prompt: consistency/grounding check against retrieved evidence",
     "wrong_tool_argument": "Entity resolution before executing a consequential call: cross-check the target order/item against the specific order named in the call",
+    "ordering_error": "Sequencing logic: state-dependent operations on the same order must be ordered by dependency (address/payment before item changes), not by request order",
 }
 
 _DO_NOT_MODIFY = {
@@ -49,6 +50,7 @@ _DO_NOT_MODIFY = {
     "context_overflow": ["Prompts (content is fine; volume is not)"],
     "reasoning_error": ["Retrieval pipeline (evidence was correct)", "Tool selection"],
     "wrong_tool_argument": ["Tool selection (the tool itself was correct)", "Retrieval pipeline"],
+    "ordering_error": ["Tool selection (both calls were individually correct)", "Model choice"],
 }
 
 
