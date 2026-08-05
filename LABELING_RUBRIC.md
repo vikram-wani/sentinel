@@ -15,7 +15,7 @@ This rubric exists to constrain that judgment before it happens.
 exception: label the trace before running Sentinel on it. Never revise a
 label after seeing the tool's output.** With synthetic traces I wrote, that
 was a discipline. Here it's load-bearing — these traces are long and
-genuinely ambiguous, and the pull to "well, Sentinel's answer is defensible
+ambiguous, and the pull to "well, Sentinel's answer is defensible
 too" will be much stronger.
 
 ## Procedure
@@ -33,7 +33,7 @@ For each sampled trajectory:
 5. **Then, and only then**, run Sentinel and record whether it agreed.
 
 Budget ~5 minutes per trajectory. If you're past 10 minutes, label it `E1`
-(see below) and move on — an honest "I couldn't determine this" is worth more
+(see below) and move on — a plain "I couldn't determine this" is worth more
 than a coin-flip label.
 
 ## Category taxonomy
@@ -87,7 +87,7 @@ the accuracy any localizer can achieve on this dataset.
 
 | Code | Category | Definition |
 |---|---|---|
-| E1 | `unlabelable` | Genuinely can't determine the root cause within the time budget |
+| E1 | `unlabelable` | Can't determine the root cause within the time budget |
 
 ## Tie-breaking rules
 
@@ -160,7 +160,7 @@ sequencing step, not the earlier stateless one.
 This is not a blanket license to ignore every recovered error. If a
 "corrected" deviation turns out to have left a partial side effect, or the
 recovery itself introduces a new problem, Rule 6 doesn't apply and Rule 1's
-plain earliest-wins logic takes back over. When genuinely unsure whether a
+plain earliest-wins logic takes back over. When unsure whether a
 deviation was truly stateless, fall back to Rule 4: pick the best fit, log
 the alternative.
 
@@ -246,5 +246,5 @@ Three numbers, computed separately, never averaged into one:
 And one qualitative finding: **the distribution of rubric codes**. If most
 real failures land in [BLIND] categories, that's the most useful output of
 Day 4 regardless of what the accuracy numbers say — it tells you what to
-build next, and it's a genuinely publishable result even if the tool performs
+build next, and it's a publishable result even if the tool performs
 badly.
