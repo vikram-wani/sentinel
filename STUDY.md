@@ -69,12 +69,12 @@ errors. All seven deterministic detectors are silent. Sentinel reports
 
 This is not a bug to patch by adding a regex. It's a category of failure —
 semantic misreading of correctly-retrieved evidence — that pattern-matching
-detectors structurally cannot catch, and it's the honest boundary of what
+detectors structurally cannot catch. That's the boundary of what
 "deterministic, CI-gateable" localization can currently do. Closing it
 requires either a constrained LLM-judge layer scoped narrowly to
 claim-vs-evidence consistency, or a much more specific structural signal than
-exists in this trace format today. Both are real work, not a quick fix, which
-is why it's documented here instead of quietly special-cased away.
+exists in this trace format today. Both are real work, documented here
+instead of quietly special-cased away.
 
 ## Day 3: closing the gap without abandoning the thesis
 
@@ -153,13 +153,13 @@ this specific set — not proof it generalizes.
 **Measured:** Tier 2 closes Day 2's documented miss with zero API calls. Tier
 3, live, closes the exception-clause gap and held 14/14 across five runs.
 
-**Not measured, and worth stating plainly:** 14 traces where the author wrote
-both the traces and the labels is not evidence of production accuracy. The
-judge has been tested against one contradiction pattern (restriction vs.
-affirmation) in one domain (retail returns policy). Its false-positive rate on
-genuinely ambiguous real-world evidence is unknown. Five runs is enough to say
-"stable on this set," not "deterministic" — and the CLI now prints that caveat
-on every run rather than burying it here.
+**Not measured:** 14 traces where the author wrote both the traces and the
+labels is not evidence of production accuracy. The judge has been tested
+against one contradiction pattern (restriction vs. affirmation) in one
+domain (retail returns policy). Its false-positive rate on ambiguous
+real-world evidence is unknown. Five runs is enough to say "stable on this
+set," not "deterministic" — and the CLI now prints that caveat on every run
+rather than burying it here.
 
 ## What this benchmark is not
 
@@ -167,10 +167,10 @@ Fourteen traces is not statistical proof of anything. It's a floor: a fixed,
 inspectable set of cases that must keep passing as the detectors evolve, run
 automatically in CI on every push. Treat 13/14 keyless and 14/14 with the
 judge as "hasn't regressed on these specific known cases," not as "93–100%
-accurate on production traffic." The next honest step is running this against
-real, messier production traces — where the failure categories won't be as
-cleanly separable as they are here by construction, and where the judge will
-face contradiction patterns nobody wrote a label for in advance.
+accurate on production traffic." The next step is running this against real,
+messier production traces — where the failure categories won't be as cleanly
+separable as they are here by construction, and where the judge will face
+contradiction patterns nobody wrote a label for in advance.
 
 ## Day 4: testing on data I didn't write
 
@@ -188,11 +188,11 @@ be built from scratch before any scoring could happen.
 ### The labeling process
 
 35 traces were sampled by stratified failure type (extra tool calls, missing
-tool calls, both, correct toolset with wrong outcome) plus 5 deliberately
-drawn from the *passing* set, as a free false-positive check. Every trace was
-read and labeled blind — category, root step, confidence, and an explicit
-alternative considered — **before** Sentinel touched any of them. The rule
-that has governed this project since Day 1 held without exception here too.
+tool calls, both, correct toolset with wrong outcome) plus 5 drawn from the
+*passing* set, as a free false-positive check. Every trace was read and
+labeled blind — category, root step, confidence, and an explicit alternative
+considered — **before** Sentinel touched any of them. The rule that has
+governed this project since Day 1 held without exception here too.
 
 The rubric itself grew twice mid-labeling, each time because a real trace
 forced a rule that didn't exist yet, not from armchair anticipation:
@@ -217,9 +217,9 @@ called once registered as "present," silently masking that it was required
 twice. Fixed with a `Counter`-based comparison. Verified against the
 original 14-trace benchmark with zero regression (still 13/14 keyless).
 
-Independent confirmation the fix was real, not incidental: it also correctly
-resolved `task76-trial3` and `task55-trial0`, two unrelated traces needing
-the identical multi-call pattern, without any further code changes.
+Confirmed independently that the fix was real, not incidental: it also
+correctly resolved `task76-trial3` and `task55-trial0`, two unrelated traces
+needing the identical multi-call pattern, without any further code changes.
 
 ### What the 35 labels found
 
@@ -233,7 +233,7 @@ the identical multi-call pattern, without any further code changes.
 | `missing_confirmation` | 2 | no |
 | `wrong_tool` | 1 | no |
 
-Two findings dominate the writeup-worthy material:
+Two findings matter most here:
 
 **A dominant behavioral pattern, not a category.** 18 of 35 traces — more
 than half — share one underlying shape regardless of which specific category
@@ -249,7 +249,7 @@ which is evidence of a systematic tendency in GPT-4o for this scenario, not
 one unlucky rollout.
 
 **Four passing traces had real problems tau-bench's own reward missed
-entirely.** This is the headline finding of the whole day, ranked above any
+entirely.** This is the biggest finding of the whole day, bigger than any
 category count. `task40-trial0`: the agent promised a nonexistent
 split-payment option, obtained confirmation for it, and then falsely told
 the customer her gift card had been applied when it hadn't — `reward=1.0`.
@@ -277,33 +277,33 @@ day of verified labeling becomes unscoreable.
 `expected_tools` is populated from tau-bench's own graded actions, filtered
 to a whitelist of consequential (state-mutating) tool names, with duplicates
 preserved so a tool required twice registers as needed twice. Read-only
-calls are deliberately excluded — including them would flag ordinary
-variation in *how* an agent gathers information as a missing required
-action, exactly the false-positive shape rejected during labeling itself
-(see `task32`, `task33-trial0` notes). `forbidden_tools` is left empty;
-inferring "this tool is wrong given this order's status" needs
-cross-referencing arguments against retrieved state, which this adapter
-doesn't attempt. `context_overflow` cannot apply at all — tau-bench reports
-no token counts. Both are documented gaps, not oversights.
+calls are excluded — including them would flag ordinary variation in *how*
+an agent gathers information as a missing required action, exactly the
+false-positive shape rejected during labeling itself (see `task32`,
+`task33-trial0` notes). `forbidden_tools` is left empty; inferring "this
+tool is wrong given this order's status" needs cross-referencing arguments
+against retrieved state, which this adapter doesn't attempt.
+`context_overflow` cannot apply at all — tau-bench reports no token counts.
+Both are documented gaps, not oversights.
 
 ### What adapter testing found before any scoring happened
 
 Running Sentinel on a single known trace (`task22-trial2`, the Rule 5
 worked example) confirmed the mechanics: category came back `missing_tool`,
-correct. The root step index did not match (Sentinel: 2, label: 14) — and
-checking why surfaced a real, distinct architectural gap: `detect_missing_tool`
-anchors to "the plan step if present, else first assistant step," and
-tau-bench conversations have no `PLAN` step type at all, so it falls back to
-the first assistant message in the entire trace, a far cruder signal than
-the reasoning Rules 1–7 apply. This is a limitation of the *anchor logic*,
-not the missing_tool detection itself, which localizes the right cause.
+correct. The root step index did not match (Sentinel: 2, label: 14).
+Checking why surfaced an architectural gap: `detect_missing_tool` anchors to
+"the plan step if present, else first assistant step," and tau-bench
+conversations have no `PLAN` step type at all, so it falls back to the first
+assistant message in the entire trace, a far cruder signal than the
+reasoning Rules 1–7 apply. This is a limitation of the *anchor logic*, not
+the missing_tool detection itself, which localizes the right cause.
 
 A second, more consequential discovery: `ignored_tool_error` fires on *any*
 tool error not explicitly restated in the final answer, including entirely
 routine, successful retries — an email lookup failing, correctly falling
 back to name-plus-zip, with the task completing fine. It has no concept of
 recovery, exactly the distinction Rule 6 had to be written into this
-project's own labeling process to capture. Sentinel's real detector hasn't
+project's own labeling process to capture. Sentinel's real detector hadn't
 learned the rule its own evaluator needed.
 
 ### Full results
@@ -323,9 +323,9 @@ above — flagging them is a correct catch, not a false positive):
 | — from `missing_tool` (overgeneralizing) | 24 |
 | **Precision if the top two were fixed** | **90.9%** |
 
-Two detectors account for 87% of every false positive. This is not a diffuse
-problem across seven detectors — it's concentrated, identified, and
-fixable. `fabricated_specifics`'s exact mechanism (a real, likely computed
+Two detectors account for 87% of every false positive. The problem is
+concentrated in two identified, fixable places, not spread across all
+seven. `fabricated_specifics`'s exact mechanism (a real, likely computed
 value like `$16.63` gets flagged as ungrounded) is not fully root-caused yet
 and is stated here as an open question, not a diagnosed bug the way
 `ignored_tool_error`'s is.
@@ -342,12 +342,12 @@ agent fault exists (29 traces) or the agent's behavior was defensible (6
 | No-fault traces correctly left `HEALTHY` | 2 / 6 |
 | No-fault traces incorrectly flagged | 4 / 6 (same two detectors) |
 
-The 100/0 split is worth sitting with. Every trace independently judged
-during labeling to be within Sentinel's real capability was diagnosed
-correctly. Every trace judged to be outside it was not. That kind of exact
-correlation is strong evidence the `has_detector` calls made throughout
-labeling reflected real technical understanding of the codebase, not
-guesses reconciled after the fact.
+The 100/0 split matters: every trace independently judged during labeling to
+be within Sentinel's real capability was diagnosed correctly. Every trace
+judged to be outside it was not. That kind of exact correlation is strong
+evidence the `has_detector` calls made throughout labeling reflected real
+technical understanding of the codebase, not guesses reconciled after the
+fact.
 
 ### Independently reproduced
 
@@ -357,7 +357,7 @@ project's own, from Day 3). Result: 185 false positives against my 186 —
 a one-trace difference, fully explained rather than shrugged off.
 `task27-trial1` was a Tier 2 candidate my keyless sandbox run left
 unconfirmed; with Tier 3 live, the judge correctly read the actual
-conversation (an agent honestly reporting an error to the customer, not
+conversation (an agent accurately reporting an error to the customer, not
 contradicting it) and suppressed the false positive Tier 2 alone couldn't
 resolve. Checked directly against the transcript: Tier 3's call was right.
 Every other number, coverage, the two dominant false-positive categories,
@@ -384,13 +384,12 @@ is a target computed from today's data, not a measured result from a
 rebuilt detector. `context_overflow` and `wrong_tool` (via `forbidden_tools`
 inference) remain entirely untestable against this dataset by construction.
 
-**Next, and explicitly not squeezed into today:** real detector work for
-the two miscalibrated existing detectors, and new detector design for the
-four capability gaps this sample surfaced — grounded-value-wrong-entity,
-sequencing/state-dependency, entity resolution across multiple candidates,
-and incomplete-but-otherwise-correct tool arguments. That's legitimate scope
-for whatever comes after this is written up, not something to context-switch
-into mid-measurement.
+**Next:** real detector work for the two miscalibrated existing detectors,
+and new detector design for the four capability gaps this sample surfaced —
+grounded-value-wrong-entity, sequencing/state-dependency, entity resolution
+across multiple candidates, and incomplete-but-otherwise-correct tool
+arguments. That's scope for after this is written up, not a mid-measurement
+context switch.
 
 ### Closing the gaps: four detector fixes, all shipped and verified
 
@@ -398,9 +397,8 @@ Picked up the "next" list above in a second session. Every fix here follows
 the same discipline as the rest of this project: diagnose against a real
 example, implement, verify zero regression on the original 14-trace
 benchmark, verify the specific target case, run the full 274/182 batch
-check, and — for the first time this project has had the chance to do this
-— get the result **independently reproduced on a second machine** before
-calling anything done.
+check, and get the result **independently reproduced on a second machine**
+before calling anything done.
 
 **`ignored_tool_error`** originally checked one thing: does the literal word
 "error" appear anywhere in the final answer. That flagged routine,
@@ -413,32 +411,32 @@ value at all, so identifier-overlap alone wasn't enough), or the same
 entity; and does the final answer disclose the issue in any of fifteen
 common phrasings, not just that one word.
 
-**`fabricated_specifics`** did literal substring matching. A genuinely
-correct answer ("$16.63 will be refunded") failed to match its own source
-data, stored as `price_difference: -16.63`, negative because it's a refund
-direction, positive because that's how a human describes a refund to a
-customer. Same number, flipped sign, literal string comparison sees them as
-unrelated. Fixed by comparing numeric value, including the negation, instead
-of raw text.
+**`fabricated_specifics`** did literal substring matching. A correct answer
+("$16.63 will be refunded") failed to match its own source data, stored as
+`price_difference: -16.63`, negative because it's a refund direction,
+positive because that's how a human describes a refund to a customer. Same
+number, flipped sign, literal string comparison sees them as unrelated.
+Fixed by comparing numeric value, including the negation, instead of raw
+text.
 
-Fixing these two together was not a clean, additive win, and the honest
-version of that story matters as much as the fix itself. Precision went
-32.1% → 44.9% → 86.5% across the two fixes in sequence, but coverage on the
-182 failing traces *also* dropped, 89.6% → 79.7% → 62.1% by the raw count.
-Before shipping anything, that drop got checked against Day 4's own 24
-verified real-failure labels rather than trusted as a percentage: 22/24 → 16/24
-caught. Every one of the 8 traces that went silent had
-`sentinel_has_detector: false` in Day 4's own labeling — meaning none of
-them were ever being *correctly* diagnosed, before or after. They were being
-caught by the same noise that was corrupting precision on healthy traces,
-accidentally overlapping with real failures without ever getting the
-category right. Removing the noise didn't cost real capability; it removed
-an illusion of capability that was never actionable to begin with.
+Fixing these two together cost something too, and that part of the story
+matters as much as the fix itself. Precision went 32.1% → 44.9% → 86.5%
+across the two fixes in sequence, but coverage on the 182 failing traces
+*also* dropped, 89.6% → 79.7% → 62.1% by the raw count. Before shipping
+anything, that drop got checked against Day 4's own 24 verified real-failure
+labels rather than trusted as a percentage: 22/24 → 16/24 caught. Every one
+of the 8 traces that went silent had `sentinel_has_detector: false` in Day
+4's own labeling — meaning none of them were ever being *correctly*
+diagnosed, before or after. They were being caught by the same noise that
+was corrupting precision on healthy traces, accidentally overlapping with
+real failures without ever getting the category right. Removing the noise
+didn't cost real capability; it removed an illusion of capability that was
+never actionable to begin with.
 
 **`wrong_tool_argument`** (new detector, not a fix) checks one hard,
 checkable fact: does an item referenced in a consequential call
 (return/exchange/modify) actually belong to the order that call names, per
-that order's own retrieved contents. Deliberately narrow — checked directly
+that order's own retrieved contents. Narrow by design — checked directly
 against the 9 traces in this failure family before building anything, and
 confirmed it only recovers 1 of them (`task16-trial0`, a wristwatch return
 misapplied across two orders). The other 8 need semantic judgment (which
@@ -450,8 +448,8 @@ Category accuracy on the 24 verified traces: 9/24 → 10/24.
 **`ordering_error`** (new detector) checks whether a successful
 `modify_pending_order_items` call is followed by a *later, failed* call on
 the same order — the exact shape independently replicated across two trials
-of `task98`. Verified this only cleanly applies to 2 of the 4 traces in this
-family; `task41` and `task42` have the same underlying problem but no
+of `task98`. Confirmed this only cleanly applies to 2 of the 4 traces in
+this family; `task41` and `task42` have the same underlying problem but no
 failed call to point to, since the dependent action was never attempted at
 all rather than attempted and rejected. That's a `missing_tool` shape, not
 this detector's, and it's already partially covered there. Zero new false
@@ -466,14 +464,13 @@ positives. Category accuracy: 10/24 → 12/24.
 | Category accuracy, 24 verified real failures | ~9/24 | 12/24 |
 | Original 14-trace benchmark | unchanged | unchanged, zero regression |
 
-### What I chose not to build, and why
+### Two detectors I didn't build
 
 Two gaps from the original four remain: entity resolution across multiple
 candidates (`task102`), and incomplete-but-otherwise-correct arguments
-(`task21`). Both were checked directly against real data before deciding,
-not waved off:
+(`task21`). Both were checked directly against real data before deciding:
 
-`task102`'s wrong order was a genuinely *delivered* order — the tool call
+`task102`'s wrong order was still a *delivered* order — the tool call
 succeeded, correctly, on the wrong target. The correct order was never
 retrieved at all, so there is no data in the trace for any structural rule
 to compare against. `task21`'s omitted item never appears in any tool call
@@ -489,10 +486,61 @@ free text) or too narrow to ever fire again outside the one trace that
 inspired it. That would spend the same credibility the last four fixes
 built, on a rule that doesn't deserve it.
 
-The honest next step for both isn't a new Tier 1/2 detector. It's extending
-Tier 3 — the part of this system already built to handle exactly this kind
-of judgment — to two new question shapes: *of these observed candidates, is
+The next step for both isn't a new Tier 1/2 detector. It's extending Tier 3
+— the part of this system already built to handle exactly this kind of
+judgment — to two new question shapes: *of these observed candidates, is
 this the one the user meant*, and *does this final action address
 everything the user actually asked for*. Deterministic first, LLM last was
 never a claim that everything is checkable without judgment. Some things
 aren't, and pretending otherwise would be a worse failure than admitting it.
+
+### A second Tier 3 question: completeness detection
+
+`task21`'s gap, an omitted item never grounded in any tool call at all, was
+left open two sections ago, with a plan: extend Tier 3 rather than force a
+Tier 1/2 rule onto something that needs judgment. Built and tested the same
+way as everything else today.
+
+**The mechanical part stays Tier 2, same discipline as the contradiction
+heuristic.** Rather than counting how many things the user asked for (fuzzy,
+NLU-shaped), the candidate generator checks one hard fact: does an
+item-identifier-shaped number the user typed appear anywhere in the
+arguments of the final consequential call. On `task21` this generated two
+candidates, `4107812777` (the shoe, never actually addressed) and
+`1656367028` (the keyboard's product ID, which should get correctly
+suppressed, since the keyboard was actually handled through a different,
+equally valid identifier).
+
+**Live result, first run:** the shoe candidate resolved exactly right,
+`INCOMPLETE`, confidence 0.92, correct reasoning. The keyboard candidate did
+not, it also came back `INCOMPLETE`, a real false positive. The prompt never
+told the judge that retail items commonly carry more than one valid
+identifier, a shared product_id plus a specific item_id per variant, so it
+read "the number the user typed isn't in the call" as proof of omission,
+without checking whether the actual outcome, the new_item_id, matched what
+was requested. Fixed by making that distinction explicit in the prompt.
+
+**A second, unrelated bug turned up during the same test.** The correct
+completeness finding lost root selection to a `fabricated_specifics` false
+positive on the same trace. The agent's final answer states a gift card
+balance of $52.36. Checked directly: the account's real starting balance was
+$86, the keyboard exchange's price difference was $33.64 (already verified
+during labeling), and 86 − 33.64 = 52.36 exactly. Correct arithmetic. But
+`calculate()` was never called for this step, so the number exists nowhere
+as a single retrieved value, only as the result of arithmetic the agent did
+correctly on its own. `fabricated_specifics`'s numeric comparison, fixed
+earlier today for sign-flipped values, has no concept of derived values, and
+flags this real, correct number as fabricated.
+
+This is a different bug from the sign-flip one, in a different detector, and
+it's not fixed today. Today's target was completeness detection. This one
+gets logged here, not chased, for the same reason `task102` and the original
+`task21` gap didn't get folded into today's four fixes either.
+
+And a separate question, not answered here: a correct, judge-confirmed Tier
+3 finding just lost to a deterministic Tier 1 false positive, purely because
+deterministic findings always outrank probabilistic ones regardless of step
+order. That's the existing architecture doing exactly what it's built to do.
+Whether that priority rule still makes sense now that Tier 3 findings can
+carry real confirmed reasoning behind them is a separate question, not one
+to answer while fixing one trace.
