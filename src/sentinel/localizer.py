@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from .schema import Finding, IncidentReport, Localization, Trace
 from .detectors.deterministic import run_all
-from .reasoning_tier import detect_reasoning_errors
+from .reasoning_tier import detect_reasoning_errors, detect_completeness_errors
 
 _DECISION_CATEGORIES = {"missing_tool", "wrong_tool", "tool_loop"}
 _SYMPTOM_CATEGORIES = {"fabricated_specifics", "ungrounded_answer", "ignored_tool_error"}
@@ -38,6 +38,7 @@ _FIX_LOCATION = {
     "reasoning_error": "Answer-generation prompt: consistency/grounding check against retrieved evidence",
     "wrong_tool_argument": "Entity resolution before executing a consequential call: cross-check the target order/item against the specific order named in the call",
     "ordering_error": "Sequencing logic: state-dependent operations on the same order must be ordered by dependency (address/payment before item changes), not by request order",
+    "incomplete_arguments": "Pre-execution checklist: cross-check every item the user mentioned against the call's arguments before a one-time, irreversible action",
 }
 
 _DO_NOT_MODIFY = {
@@ -51,6 +52,7 @@ _DO_NOT_MODIFY = {
     "reasoning_error": ["Retrieval pipeline (evidence was correct)", "Tool selection"],
     "wrong_tool_argument": ["Tool selection (the tool itself was correct)", "Retrieval pipeline"],
     "ordering_error": ["Tool selection (both calls were individually correct)", "Model choice"],
+    "incomplete_arguments": ["Tool selection (the tool itself was correct)", "Retrieval pipeline"],
 }
 
 
@@ -89,7 +91,7 @@ def localize(findings: list[Finding]) -> Localization | None:
 
 
 def analyze(trace: Trace) -> IncidentReport:
-    findings = run_all(trace) + detect_reasoning_errors(trace)
+    findings = run_all(trace) + detect_reasoning_errors(trace) + detect_completeness_errors(trace)
     loc = localize(findings)
     return IncidentReport(
         trace_id=trace.trace_id,
