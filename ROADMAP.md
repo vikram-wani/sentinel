@@ -102,3 +102,18 @@ and burns time before checking here first.
 3. Root-priority question and retail-generalization question — real, but
    bigger than a coding session; scheduled on purpose, not squeezed in
 4. Everything else, as it comes up
+
+---
+
+## Notes
+
+- The `patch_*.py` and `study_insert_*.py` scripts in the repo root are
+  kept on purpose, not clutter, they're a record of exactly how each fix
+  landed (safe find-and-replace with a check-first guard, same pattern
+  every time). Skip them when reading the codebase; they're process
+  history, not part of the running tool.
+
+Session closed here for today. Everything above reflects the real state of
+the repo, not a plan, `sentinel bench` at 14/14, Signal A and Signal B both
+live and stability-confirmed, the code committed. Next session should start
+by reading this file, not by reconstructing status from memory.
