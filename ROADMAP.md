@@ -5,17 +5,30 @@ scoped more precisely, or new ones get discovered, the same way `STUDY.md`
 grew rules and sections mid-project instead of being written once and left
 alone.
 
-Last updated: Day 4, post-completeness-detection (Signal A shipped).
+Last updated: Day 4, post-Signal-B (shipped, stability-confirmed).
 
 ---
 
+## Recently completed
+
+- [x] **Signal B** — the continuation-cue completeness check. Shipped, and
+      the story behind it is worth keeping, not just the checkbox. First
+      live test caught two things at once: it correctly found a real
+      omission (a gift card balance inquiry the user asked for, with no
+      numeric ID at all, exactly the shape Signal A structurally can't
+      catch), and it exposed that Signal A's earlier keyboard false
+      positive fix hadn't actually been confirmed live before Signal B
+      work started. The first fix attempt (an abstract instruction in the
+      prompt) was present in the code but didn't reliably change the
+      judge's behavior. A second attempt, adding a concrete worked example
+      to the prompt instead of just restating the rule, did. Confirmed
+      stable across 7 consecutive live runs, not just one good pass, a
+      stronger bar than Signal A originally got. Zero regression on the
+      14-trace benchmark.
+
 ## In progress
 
-- [ ] **Signal B** — the continuation-cue completeness check. Catches a
-      purely descriptive omission with no numeric ID to hook onto ("also,
-      can you return my backpack" with nothing to match against). Signal A
-      (the numeric-identifier check) is live and shipped; this is its
-      sibling, same Tier 2 candidate generator pattern, different trigger.
+*(nothing right now)*
 
 ## Scoped, known, not started
 
@@ -80,9 +93,12 @@ and burns time before checking here first.
 
 ## Suggested order, as of this update
 
-1. Signal B (already mid-flight, pattern is fresh)
-2. `fabricated_specifics` arithmetic gap (actively costing Signal A a
-   correct root selection, not just a documented gap anymore)
+1. `fabricated_specifics` arithmetic gap — still actively costing both
+   Signal A and Signal B a correct root selection on `task21`, not just a
+   documented gap anymore, now blocking two shipped detectors instead of one
+2. Entity resolution, the other Tier 3 extension (`task102`'s shape) —
+   Signal A and B closed out the completeness half of the original plan;
+   this is the remaining half, not started at all
 3. Root-priority question and retail-generalization question — real, but
    bigger than a coding session; scheduled on purpose, not squeezed in
 4. Everything else, as it comes up
