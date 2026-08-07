@@ -5,14 +5,14 @@ scoped more precisely, or new ones get discovered, the same way `STUDY.md`
 grew rules and sections mid-project instead of being written once and left
 alone.
 
-Last updated: Day 4, post-Signal-B (shipped, stability-confirmed).
+Last updated: Day 4, post-arithmetic-fix and Signal B redesign (both shipped, both verified at scale).
 
 ---
 
 ## Recently completed
 
-- [x] **Signal B** — the continuation-cue completeness check. Shipped, and
-      the story behind it is worth keeping, not just the checkbox. First
+- [x] **Signal B** — the continuation-cue completeness check, first version.
+      Shipped, and the story is worth keeping, not just the checkbox. First
       live test caught two things at once: it correctly found a real
       omission (a gift card balance inquiry the user asked for, with no
       numeric ID at all, exactly the shape Signal A structurally can't
@@ -26,19 +26,61 @@ Last updated: Day 4, post-Signal-B (shipped, stability-confirmed).
       stronger bar than Signal A originally got. Zero regression on the
       14-trace benchmark.
 
-## In progress
+- [x] **`fabricated_specifics`'s arithmetic gap, closed.** A correctly
+      computed value (task21's $52.36 gift card balance, derived from
+      86 - 268.77 + 235.13, three grounded numbers, not two) was being
+      flagged as fabricated because it was never itself retrieved as a
+      single value. Fixed by checking every 2- and 3-number signed
+      combination of grounded values, not just direct matches. Stops at 3
+      terms on purpose: real cost (30-120ms per trace, measured, not
+      estimated), and going further would raise the risk of a coincidental
+      match. Verified: zero regression on the 14-trace benchmark, `task21`
+      now resolves cleanly with `fabricated_specifics` no longer firing at
+      all, not just losing root selection.
 
-*(nothing right now)*
+- [x] **Signal B's real design gap, found and fixed.** The arithmetic fix
+      unmasked a second, bigger problem: precision on the full 274-trace
+      passing set dropped to 71.2% with 53 false positives from
+      `incomplete_arguments`, all traced to two structural gaps in Signal
+      B. It only ever checked the *last* consequential call in a trace
+      (wrong when a task has several independent, separately-executed
+      requests, like `task23`'s helmet/luggage/grill), and it only ever
+      showed the judge the user's turns, never the agent's (wrong when a
+      request gets resolved through dialogue alone, like `task2`'s
+      withdrawn cleaner request or `task3`'s narrowed "all orders"). Fixed
+      by aggregating every consequential call across the trace and handing
+      the judge the full transcript, both sides, plus an explicit
+      instruction that correctly-resolved dialogue isn't an omission.
+      Verified directly against `task21`, `task23`, `task2`, and `task3`
+      before trusting it, then confirmed at scale: precision recovered to
+      82.5-83.6% (small variation is expected Tier 3 run-to-run noise, not
+      a bug), coverage held at 73.1%.
 
-## Scoped, known, not started
+- [x] **Batch scoring parallelized.** The original script analyzed one
+      trace at a time; with two live completeness signals now making real
+      judge calls, a full run had gotten slow enough to look hung. Rebuilt
+      with a thread pool (8 concurrent workers, adjustable), since every
+      judge call is I/O-bound waiting on network, not CPU-bound. Confirmed
+      against a sequential baseline (~2.5x speedup on a mocked test) and
+      confirmed producing consistent real results, 24 seconds for the full
+      182-trace coverage section with live progress, versus a sequential
+      run long enough to prompt an attempted cancel. Also fixed a real bug
+      caught during testing, not assumed away: a single trace failing to
+      analyze was correctly excluded from the false-positive count but the
+      denominator wasn't shrinking to match, which would have quietly
+      under-reported precision if anything failed mid-run.
 
-- [ ] **`fabricated_specifics`'s arithmetic gap.** A correctly *computed*
-      value (the $52.36 gift card balance) gets flagged as fabricated
-      because it was never grounded in a single retrieved number, only in
-      arithmetic the agent did correctly without calling `calculate()`.
-      Logged in `STUDY.md`, not fixed. Distinct from the sign-flip bug
-      already fixed earlier Day 4. Currently blocking Signal A's own
-      correct finding from winning root on `task21`.
+## In progress / open
+
+- [ ] **~19-22 remaining `incomplete_arguments` false positives, not yet
+      diagnosed.** The Signal B redesign fixed the three found cases
+      (`task2`, `task3`, `task23`) and cut false positives roughly in half,
+      but didn't reach zero. At least one more distinct pattern is still
+      producing false positives on the passing set. Next real diagnostic
+      step: pull fresh examples from the current false-positive list the
+      same way the first three were found, don't assume it's the same bug
+      recurring until checked.
+
 - [ ] **Entity resolution, the other Tier 3 extension** (`task102`'s
       shape). "Of these observed candidates, is this the one the user
       meant." Completeness detection (`task21`'s shape) is done; this is
@@ -52,7 +94,10 @@ Last updated: Day 4, post-Signal-B (shipped, stability-confirmed).
       of step order. That's the architecture working as designed, but now
       that Tier 3 findings can carry real confirmed reasoning, is that
       still the right rule? Flagged explicitly in `STUDY.md` as unresolved.
-      Deserves a dedicated look, not a reactive fix made mid-debug.
+      Deserves a dedicated look, not a reactive fix made mid-debug. Now
+      moot for `task21` specifically since `fabricated_specifics` no
+      longer fires there at all, but the underlying architectural question
+      is still open and will resurface on some other trace eventually.
 - [ ] **Does any of this generalize past retail?** Every fix, every number
       from Day 4 came from tau-bench's retail domain. Airline data exists
       in the same benchmark, never touched. Open question: is
@@ -84,21 +129,21 @@ and burns time before checking here first.
 
 ## Content, lower priority than the engineering, still part of the cadence
 
-- [ ] Signal A's own writeup. The four-fix post covered the earlier work;
-      the live completeness-detector validation, the shoe catch, the
-      keyboard false positive, the same-day fix, is a good story that
-      hasn't been told publicly yet.
+- [ ] Signal A's and Signal B's own writeup. The four-fix post covered
+      earlier work; the live completeness-detector validation, the shoe
+      catch, the keyboard false positive, the task23/task2/task3 false
+      positives and the transcript redesign that fixed them, is a good,
+      concrete story that hasn't been told publicly yet.
 
 ---
 
 ## Suggested order, as of this update
 
-1. `fabricated_specifics` arithmetic gap — still actively costing both
-   Signal A and Signal B a correct root selection on `task21`, not just a
-   documented gap anymore, now blocking two shipped detectors instead of one
+1. Diagnose the ~19-22 remaining `incomplete_arguments` false positives —
+   the freshest, most concrete open item, and the one most likely to have
+   another real, fixable pattern underneath it
 2. Entity resolution, the other Tier 3 extension (`task102`'s shape) —
-   Signal A and B closed out the completeness half of the original plan;
-   this is the remaining half, not started at all
+   the remaining half of the original two-gap plan, not started at all
 3. Root-priority question and retail-generalization question — real, but
    bigger than a coding session; scheduled on purpose, not squeezed in
 4. Everything else, as it comes up
@@ -113,7 +158,7 @@ and burns time before checking here first.
   every time). Skip them when reading the codebase; they're process
   history, not part of the running tool.
 
-Session closed here for today. Everything above reflects the real state of
-the repo, not a plan, `sentinel bench` at 14/14, Signal A and Signal B both
-live and stability-confirmed, the code committed. Next session should start
-by reading this file, not by reconstructing status from memory.
+This file reflects the real, current state of the repo, not a plan.
+`sentinel bench` at 14/14, precision at 82.5-83.6% and coverage at 73.1% on
+the full tau-bench batch, all code committed. Read this file first at the
+start of any new session rather than reconstructing status from memory.
