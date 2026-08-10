@@ -5,7 +5,7 @@ scoped more precisely, or new ones get discovered, the same way `STUDY.md`
 grew rules and sections mid-project instead of being written once and left
 alone.
 
-Last updated: Day 4, post-arithmetic-fix and Signal B redesign (both shipped, both verified at scale).
+Last updated: Day 4, post-consequential-tools fix (shipped, verified: 84.7% precision, 16 remaining incomplete_arguments false positives, 2 confirmed patterns queued next).
 
 ---
 
@@ -70,16 +70,46 @@ Last updated: Day 4, post-arithmetic-fix and Signal B redesign (both shipped, bo
       denominator wasn't shrinking to match, which would have quietly
       under-reported precision if anything failed mid-run.
 
+- [x] **`cancel_pending_order` missing from the completeness signals'
+      consequential-tools set, found and fixed.** Two of five sampled
+      false positives (`task30`, `task31`) traced to the same root cause:
+      the set both signals use to decide "what counts as an action worth
+      showing the judge" only ever had the three item-touching tools
+      (`return_delivered_order_items`, `exchange_delivered_order_items`,
+      `modify_pending_order_items`), inherited from a different detector
+      that specifically needs item_ids. `cancel_pending_order` and the two
+      `modify_pending_order_address`/`payment` variants operate on a whole
+      order, not specific items, so they were silently excluded, meaning a
+      successful cancellation looked to the judge like it never
+      happened. Expanded the set to all six state-changing tools and
+      renamed it from `_CONSEQUENTIAL_ITEM_TOOLS` to `_CONSEQUENTIAL_TOOLS`
+      since "item" was no longer accurate. Verified: zero regression on
+      the 14-trace benchmark, `task30` and `task31` both resolved to
+      `HEALTHY`, `task21` still correctly flags its real omission.
+      Precision moved 83.6% -> 84.7%, `incomplete_arguments` false
+      positives dropped from 19-22 down to 16.
+
 ## In progress / open
 
-- [ ] **~19-22 remaining `incomplete_arguments` false positives, not yet
-      diagnosed.** The Signal B redesign fixed the three found cases
-      (`task2`, `task3`, `task23`) and cut false positives roughly in half,
-      but didn't reach zero. At least one more distinct pattern is still
-      producing false positives on the passing set. Next real diagnostic
-      step: pull fresh examples from the current false-positive list the
-      same way the first three were found, don't assume it's the same bug
-      recurring until checked.
+- [ ] **`task45`'s contradictory payment methods, `task46`/`task47`'s
+      off-by-one order ID — confirmed real, not yet investigated.** From
+      the original five-example sample: `task45` shows two different
+      payment methods (a gift card and PayPal) both appearing across the
+      call list with no clear indication which one actually executed.
+      `task46` and `task47` both show the user stating an order ID one
+      digit off from the one actually used ("9502126" vs "#W9502127"),
+      likely the same shape as the earlier keyboard false positive, a
+      customer typo the agent correctly resolved, reported as a mismatch
+      anyway. Two dead ends already ruled out on the way to this, both
+      worth recording so they don't get re-investigated by mistake: the
+      coverage drop after the consequential-tools fix (73.1% -> ~70%) was
+      checked against `task28` and `task34` directly and neither showed a
+      real miss, so it isn't caused by that fix. And a suspected
+      `ignored_tool_error` gap (`task19`, `task27` both ending on a failed
+      transfer to a human agent with no visible resolution) turned out to
+      be the detector working correctly, both traces had a genuine
+      disclosure buried in truncated terminal output that a fuller check
+      found. Pick up directly with `task45`, `task46`, `task47` next.
 
 - [ ] **Entity resolution, the other Tier 3 extension** (`task102`'s
       shape). "Of these observed candidates, is this the one the user
@@ -139,9 +169,9 @@ and burns time before checking here first.
 
 ## Suggested order, as of this update
 
-1. Diagnose the ~19-22 remaining `incomplete_arguments` false positives —
-   the freshest, most concrete open item, and the one most likely to have
-   another real, fixable pattern underneath it
+1. `task45`'s contradictory payment methods and `task46`/`task47`'s
+   off-by-one order ID — confirmed real from the original five-example
+   sample, not yet investigated, pick up here directly
 2. Entity resolution, the other Tier 3 extension (`task102`'s shape) —
    the remaining half of the original two-gap plan, not started at all
 3. Root-priority question and retail-generalization question — real, but
