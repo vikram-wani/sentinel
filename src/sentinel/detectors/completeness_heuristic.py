@@ -31,11 +31,27 @@ from dataclasses import dataclass
 
 from ..schema import StepType, Trace
 
-_CONSEQUENTIAL_ITEM_TOOLS = {
+_CONSEQUENTIAL_TOOLS = {
     "return_delivered_order_items",
     "exchange_delivered_order_items",
     "modify_pending_order_items",
+    "cancel_pending_order",
+    "modify_pending_order_address",
+    "modify_pending_order_payment",
 }
+# Found via a real false positive: task30's agent successfully cancelled a
+# pending order (cancel_pending_order), confirmed it to the customer, and
+# it was correctly completed. This set previously only covered the three
+# item-touching tools, borrowed from a different detector
+# (detect_cross_order_item_mismatch in deterministic.py) that specifically
+# needs item_ids to check membership against an order's contents.
+# cancel_pending_order and the two modify_pending_order_* variants below
+# operate on a whole order, not specific items, so they were never in that
+# original set -- but they're just as "consequential" for the purpose this
+# module actually cares about: did the agent's final action account for
+# everything the user asked for. Renamed from _CONSEQUENTIAL_ITEM_TOOLS to
+# _CONSEQUENTIAL_TOOLS since "item" was no longer accurate once cancel and
+# modify-whole-order joined the set.
 
 # Item/product identifiers in this domain run 6+ digits. Shorter numbers
 # (zip codes are 5, phone extensions shorter still) are excluded on purpose
@@ -58,7 +74,7 @@ def _final_consequential_call(trace: Trace):
     which call is being checked."""
     return next(
         (s for s in reversed(trace.steps)
-         if s.type == StepType.TOOL_CALL and s.name in _CONSEQUENTIAL_ITEM_TOOLS),
+         if s.type == StepType.TOOL_CALL and s.name in _CONSEQUENTIAL_TOOLS),
         None,
     )
 
@@ -133,15 +149,49 @@ def find_candidates(trace: Trace) -> list[CompletenessCandidate]:
     return candidates
 
 
+def _all_consequential_calls(trace: Trace) -> list:
+    """Every consequential tool call across the whole trace, not just the
+    last one. The original version only ever checked the final call
+    (via _final_consequential_call), which is correct when policy forces
+    everything into one combined action (task21's shape) but wrong when a
+    task has several independent, separately-executed requests. Found via
+    a real false positive: task23 has a helmet exchange, a luggage
+    exchange, and a grill modification, each its own call, each already
+    correct on its own. Checking only the last call made the first two
+    look omitted when they had already succeeded earlier in the trace."""
+    return [s for s in trace.steps
+            if s.type == StepType.TOOL_CALL and s.name in _CONSEQUENTIAL_TOOLS]
+
+
+def _full_transcript(trace: Trace) -> str:
+    """Both sides of the conversation, in order, not just the user's turns.
+    A request can be fully resolved through dialogue alone before any
+    action is needed: the agent discloses a constraint and the user
+    narrows the request, or the agent already investigated and reports a
+    confirmed answer the user accepts without objection. The original
+    version built its evidence from user messages only, so the judge never
+    saw the agent's half of exactly the exchanges that would show a
+    request was already settled -- found via three real false positives
+    (task2, task3, task23), checked directly against the raw conversation
+    before rebuilding this."""
+    parts = []
+    for s in trace.steps:
+        if s.type == StepType.USER:
+            parts.append(f"USER: {_text(s.input)}")
+        elif s.type == StepType.ASSISTANT:
+            text = _text(s.output)
+            if text:
+                parts.append(f"ASSISTANT: {text}")
+    return "\n".join(parts)
+
+
 @dataclass
 class DescriptiveCompletenessCandidate:
     trigger_step_index: int    # where the continuation cue was found
     trigger_phrase: str        # the cue itself ("also", "as well", ...)
-    full_request_text: str     # every user message combined, not just one --
-                                # the omitted item may have been named earlier
-                                # while the cue appears later
-    call_step_index: int
-    call_args: dict
+    full_transcript: str       # both sides of the conversation, in order
+    call_step_index: int       # anchor for the Finding: the last consequential call
+    all_call_args: list        # every consequential call's arguments across the trace
 
 
 def find_descriptive_candidates(trace: Trace) -> list[DescriptiveCompletenessCandidate]:
@@ -157,22 +207,24 @@ def find_descriptive_candidates(trace: Trace) -> list[DescriptiveCompletenessCan
     generating one candidate per "also" would just mean asking the judge the
     identical question multiple times.
 
-    Real-world validation status, stated plainly: built and tested against a
-    synthetic example, not yet confirmed against a real trace the way Signal
-    A was validated against task21. None of the 35 traces labeled during Day
-    4 necessarily exercise this exact shape (every one seen so far involved
-    at least one concrete number). Flagged in ROADMAP.md until a live test
-    against real data closes that gap.
+    Validated against real data twice now, not once. First pass caught the
+    target case (task21) but also produced three false positives on the
+    passing set, all traced to the same two structural gaps: only the last
+    call was checked, and the judge never saw the agent's own turns. Both
+    fixed here, checked directly against task2, task3, and task23 before
+    calling this done.
     """
-    final_call = _final_consequential_call(trace)
-    if final_call is None:
+    calls = _all_consequential_calls(trace)
+    if not calls:
         return []
+    final_call = calls[-1]
 
     user_steps = [s for s in trace.steps if s.type == StepType.USER]
     if len(user_steps) < 2:
         return []  # a continuation cue needs something to continue from
 
-    full_request_text = " ".join(_text(s.input) for s in user_steps)
+    transcript = _full_transcript(trace)
+    all_args = [c.input or {} for c in calls]
 
     # Skip the first user message -- an opening request can't be a
     # "continuation" of anything yet.
@@ -183,8 +235,8 @@ def find_descriptive_candidates(trace: Trace) -> list[DescriptiveCompletenessCan
                 return [DescriptiveCompletenessCandidate(
                     trigger_step_index=step.index,
                     trigger_phrase=cue,
-                    full_request_text=full_request_text,
+                    full_transcript=transcript,
                     call_step_index=final_call.index,
-                    call_args=final_call.input or {},
+                    all_call_args=all_args,
                 )]
     return []

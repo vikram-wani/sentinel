@@ -121,11 +121,23 @@ def judge_candidate(candidate: ContradictionCandidate) -> JudgeVerdict | None:
 
 SYSTEM_PROMPT_COMPLETENESS = """You are a narrow completeness checker for an AI reliability tool.
 
-You will be given USER_REQUEST (what the customer asked for) and
-ACTION_TAKEN (the arguments of the tool call the agent actually executed).
+You will be given USER_REQUEST (the full conversation, both the customer's
+and the agent's turns, in order) and ACTION_TAKEN (every consequential
+action the agent actually executed, as a list -- there may be one action or
+several).
 
-Your only job: does ACTION_TAKEN address everything the user asked for, or
-did the user ask for a change that ACTION_TAKEN does not reflect at all?
+Your only job: does ACTION_TAKEN, taken together, address everything the
+user asked for, or did the user ask for a change that no action in the list
+reflects at all? A request can be fully satisfied by any single action in
+the list -- check the whole list, not just the last entry.
+
+The conversation may show a request being withdrawn, narrowed, or resolved
+through dialogue alone, before any action was needed. If the agent
+disclosed a constraint and the user accepted a narrower scope, or the agent
+already investigated and reported a confirmed answer the user accepted
+without objection, that request is settled. Do not flag it as incomplete
+just because no corresponding action exists -- correctly resolved dialogue
+is not an omission.
 
 Important: retail items commonly have more than one valid identifier for the
 same physical item (a product_id shared across variants, and a specific
@@ -138,8 +150,8 @@ target value matches what the user requested, the item was addressed, even
 if the specific source identifier they typed doesn't appear verbatim.
 
 Worked example, read this before answering:
-USER_REQUEST: "change product 1656367028 to 1421289881"
-ACTION_TAKEN: {"item_ids": ["1340995114"], "new_item_ids": ["1421289881"]}
+USER_REQUEST: "USER: change product 1656367028 to 1421289881"
+ACTION_TAKEN: [{"item_ids": ["1340995114"], "new_item_ids": ["1421289881"]}]
 The source number the user typed (1656367028) is absent. Check the target
 instead: new_item_ids contains 1421289881, exactly what the user asked to
 change TO. The request is satisfied. Correct verdict: COMPLETE. The absent
@@ -147,8 +159,8 @@ source number is a different valid identifier for the same item, not a
 missing item.
 
 Only flag INCOMPLETE when a distinct request -- a different item, a
-different change -- has no representation at all in ACTION_TAKEN, not when
-the same item is referenced by a different valid identifier.
+different change -- has no representation at all in ACTION_TAKEN, and was
+never resolved through dialogue either.
 
 Respond in this exact format:
 VERDICT: [INCOMPLETE or COMPLETE]

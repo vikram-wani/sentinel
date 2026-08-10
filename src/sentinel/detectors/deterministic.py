@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from itertools import combinations, product
 
 from ..schema import Finding, Severity, Step, StepType, Trace
 
@@ -291,6 +292,45 @@ def _corpus_numeric_values(corpus: str) -> set[float]:
     return out
 
 
+_ARITHMETIC_MAGNITUDE_CAP = 100_000  # excludes ID-shaped numbers (item IDs, order
+# fragments, which run 6-10+ digits in this domain) from arithmetic candidacy.
+# Those are identifiers, not quantities to combine, and including them would
+# risk a coincidental sum or difference matching some real dollar amount by
+# chance rather than by actual derivation.
+
+
+def _derivable_from_arithmetic(val: float, corpus_numbers: set[float]) -> bool:
+    """Catches a correctly-computed value that was never itself retrieved as a
+    single number, only produced by arithmetic the agent did on its own
+    without calling calculate(). Found via a real trace: task21's final
+    answer states a gift card balance of $52.36. That number is a two-level
+    derivation, 86 (the starting balance) minus a price difference that is
+    itself 268.77 minus 235.13, three grounded numbers combined, not two.
+    An earlier version of this check only tried pairs and missed it;
+    verified directly against the real trace before shipping this version,
+    not assumed to be sufficient from the pair case alone.
+
+    Checks every combination of 2 or 3 grounded numbers, in every +/- sign
+    pattern, which covers any chain of addition and subtraction regardless
+    of nesting (a - (b - c) reduces to a - b + c, a signed sum, so this
+    formulation needs no special-casing for "nested" derivations). Stops at
+    3 terms on purpose: real cost, not free, roughly 30-120ms per trace on
+    a full search of a realistically sized evidence corpus (measured, not
+    estimated), which is acceptable for a single trace but adds up over a
+    460-trace batch run. Going to 4+ terms would also raise the risk of a
+    coincidental match, several unrelated numbers happening to sum to a
+    genuinely fabricated value by chance. 3 terms is the boundary that
+    solves every real case found so far without over-reaching."""
+    candidates = [c for c in corpus_numbers if abs(c) < _ARITHMETIC_MAGNITUDE_CAP]
+    for n_terms in (2, 3):
+        for combo in combinations(candidates, n_terms):
+            for signs in product([1, -1], repeat=n_terms):
+                total = sum(s * c for s, c in zip(signs, combo))
+                if abs(total - val) < 0.01:
+                    return True
+    return False
+
+
 def _is_grounded(tok: str, corpus: str, corpus_numbers: set[float]) -> bool:
     if tok in corpus:
         return True
@@ -300,7 +340,9 @@ def _is_grounded(tok: str, corpus: str, corpus_numbers: set[float]) -> bool:
         val = float(stripped)
     except ValueError:
         return False
-    return any(abs(val - c) < 0.01 or abs(-val - c) < 0.01 for c in corpus_numbers)
+    if any(abs(val - c) < 0.01 or abs(-val - c) < 0.01 for c in corpus_numbers):
+        return True
+    return _derivable_from_arithmetic(val, corpus_numbers)
 
 
 def detect_fabricated_specifics(trace: Trace) -> list[Finding]:

@@ -80,7 +80,7 @@ def detect_completeness_errors(trace: Trace) -> list[Finding]:
 
     for c in completeness_find_candidates(trace):  # Signal A
         if have_judge:
-            verdict = judge_completeness(c.user_text, c.call_args)
+            verdict = judge_completeness(c.user_text, [c.call_args])
             if verdict is None:
                 findings.append(_unconfirmed_signal_a_finding(
                     c, note="judge call failed, falling back to heuristic-only"))
@@ -109,7 +109,7 @@ def detect_completeness_errors(trace: Trace) -> list[Finding]:
 
     for c in completeness_find_descriptive_candidates(trace):  # Signal B
         if have_judge:
-            verdict = judge_completeness(c.full_request_text, c.call_args)
+            verdict = judge_completeness(c.full_transcript, c.all_call_args)
             if verdict is None:
                 findings.append(_unconfirmed_signal_b_finding(
                     c, note="judge call failed, falling back to heuristic-only"))
